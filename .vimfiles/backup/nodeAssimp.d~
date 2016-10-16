@@ -1,0 +1,39 @@
+module model.modelloader.nodeAssimp;
+
+import model.imports;
+
+class Node_Assimp {
+
+private:
+	mat4 _transformation;
+	Node_Assimp _parent;
+	Node_Assimp[] _children;
+	uint[] _meshIndices;
+
+public:
+	this(const aiNode* node, Mesh_Assimp[] meshes, Node_Assimp parent = null) in {
+		assert(node !is null);
+	} body {
+		_transformation = convertMat4(node.mTransformation);
+		_parent = parent;
+		_children.length = node.mNumChildren;
+		foreach(i; 0..node.mNumChildren) {
+			_children[i] = new Node_Assimp(node.mChildren[i], meshes, this);
+		}
+		_meshIndices.length = node.mNumMeshes;
+		foreach(i; 0..node.mNumMeshes) {
+			_meshIndices[i] = node.mMeshes[i];
+		}
+		_meshIndices.each!(i => meshes[i].multMatrix(_transformation));
+	}
+
+private:
+	// convert m from aiMatrix4x4 to mat4
+	mat4 convertMat4(aiMatrix4x4 m) @nogc {
+		return mat4(m.a1, m.a2, m.a3, m.a4,
+					m.b1, m.b2, m.b3, m.b4,
+					m.c1, m.c2, m.c3, m.c4,
+					m.d1, m.d2, m.d3, m.d4);
+	}
+
+}

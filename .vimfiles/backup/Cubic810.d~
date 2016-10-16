@@ -1,0 +1,397 @@
+module enemy.Cubic810;
+
+import enemy.GameAI;
+import sbylib;
+import collision;
+import enemy;
+
+class Cubic810 : GameAI {
+  static{
+    vec3 gravity = vec3(0.0,-9.8/100.0,0.0);
+  }
+  private vec4[] prevertices;
+  //死んだ時に使う頂点
+  private vec4[] vertex;
+  private vec4[] prevertex;
+  private vec3[] lastVertices;
+  private double angle = 0.001;
+  private float turnangle = 0.0; 
+  private double size = 1.0;
+  private vec3 dir = vec3(0.0,0.0,0.01);
+  private vec3 presevedir;
+  private float range = 10.0;  //射程範囲
+  private bool getGround = false;//着地したかどうか
+  private bool aliveflg = true;//生きているかどうか
+  // 	private EnemyCollisionObject collisionObject;
+  float accel = 1.5;
+  //攻撃に関する変数
+  bool noticeflg = false;
+  bool attackflg = false;
+  //攻撃時の速度上昇率
+  float attackRate = 1.8;
+  //攻撃時のy方向の速さ
+  float attackUp = 0.2;
+  int count = 0;
+  float dist = 0;
+  //死亡時に使う変数
+  float deathcount = 0;    //面を開く角度(加速度的に上昇)    
+  int dount = 0;           //開ききった面の数(上面は三つ分)
+  float deathcountSum = 0; //一つの面を展開時に開いた角度の和
+  float[] rotateOrder = [1,1,1,-1,-1];  //死亡時に展開する面の回転する方向
+  Tuple!(int,int)[] depOrder = [tuple(5,4),tuple(0,1),tuple(2,3),tuple(5,1),tuple(0,4)];  //死亡時に展開する面の回転軸を作る二つの点の組
+  //描画
+  CustomObject custom;
+
+  this(Octree tree, Material mat = null)  {
+    if (mat is null){
+      mat = new Material;
+<<<<<<< HEAD
+      mat.withMaterial = (d,rc,u) @nogc {
+=======
+      mat.withMaterial = (d,rc,u) {
+>>>>>>> crystal_fix
+        rc.defaulting;
+        rc.cullFace(false);
+        u();
+      };
+    }
+    TextureObject tex = new TextureObject(SbyWorld.rootPath ~ "Resource/traP.png");
+    //頂点のそれぞれの面の描画順序
+    uint[][6] index = [
+      [4,5,0,1], //下
+      [6,7,4,5], //手前
+      [0,1,2,3], //奥
+      [2,3,6,7], //上
+      [5,7,1,3], //左
+      [0,2,4,6]  //右
+    ];
+    //頂点の基とするもの
+    vertex = [
+      vec4(-1,-1,-1,1f),
+      vec4(+1,-1,-1,1),
+      vec4(-1,+1,-1,1),
+      vec4(+1,+1,-1,1),
+      vec4(-1,-1,1,1),
+      vec4(+1,-1,1,1),
+      vec4(-1,+1,1,1),
+      vec4(+1,+1,1,1)
+    ];
+    vec2[4] tc = [
+      vec2(0,0),
+      vec2(1,0),
+      vec2(0,1),
+      vec2(1,1)
+    ];
+
+    vec4[] vertex2;
+    foreach (i; 0..6) {
+      vertex2 ~= vertex[index[i][0]];
+      vertex2 ~= vertex[index[i][1]];
+      vertex2 ~= vertex[index[i][2]];
+      vertex2 ~= vertex[index[i][2]];
+      vertex2 ~= vertex[index[i][1]];
+      vertex2 ~= vertex[index[i][3]];
+    }
+    vec2[] tc2;
+    foreach (i; 0..6) {
+      tc2 ~= tc[0];
+      tc2 ~= tc[1];
+      tc2 ~= tc[2];
+      tc2 ~= tc[2];
+      tc2 ~= tc[1];
+      tc2 ~= tc[3];
+    }
+    alias conv = reduce!((a,b) => a ~ b.array);
+    custom = new CustomObject(mat, ShaderStore.getShader("TextureShow"), Prim.Triangle);
+    custom.beginMesh;
+    custom.addAttribute!(4, "mVertex")(conv(cast(float[])[], vertex2), GpuSendFrequency.Static);
+    custom.addAttribute!(2, "mTexcoord")(conv(cast(float[])[], tc2), GpuSendFrequency.Static);
+    custom.setIndex(iota(cast(uint)36).array, GpuSendFrequency.Static);
+    custom.setTexture(tex);
+    custom.addDynamicUniformMatrix!(4, "mWorld")({return this.getWorldMatrix.array;});
+    custom.addDynamicUniformMatrix!(4, "mViewProj")({return SbyWorld.currentCamera.getViewProjectionMatrix().array;});
+    custom.endMesh;
+    vertices = vertex2.dup;
+    prevertices = vertex2.dup;
+    prevertex = vertex.dup;
+    foreach (i; 0..12) {
+      indices ~= cast(uint[])[i*3, i*3+1, i*3+2].reverse;
+    }
+    this.lastVertices = this.vertices.map!(a => a.xyz).array;
+    //衝突判定を追加
+    addCollisionObject(tree);
+    collisionObject.listener = (std.container.Array!CollisionInfo collisionInfo) {
+      getGround = false;
+      foreach (info; collisionInfo) {
+        if(!getGround && (  0.90 <= info.normal.y || info.normal.y <= 1.0) ){
+          info.normal = vec3(0.0,info.normal.y,0.0);
+          dir += info.normal * dir.length;
+          pos = getPos() + vec3(0.0, info.distance*0.98 ,0.0); //0.98*sizeで810を少し床から浮かせる
+          getGround = true;
+        }
+      }
+    };
+    collisionObject.update; //octre
+
+  }
+
+  override bool step() {
+    if(aliveflg){
+      update();
+    }else{
+      death();
+    }
+    move();
+    return true;
+  }
+
+  //AIの状態遷移
+  void update(){
+
+    HP--;
+    //xz平面ないの移動をしなくなったら
+    if(dir.xz.length <= 0){  
+      //xz成分の速度をy成分を回転させて得る
+      front_turn();
+    }
+    //体力が0なら
+    if(HP <= 0){
+      aliveflg = false;
+      // 		pos(getPos() + vec3(0.0,0.02,0.0));
+      vertices = prevertices.dup;
+      vertex = prevertex.dup;
+      return;
+    }
+
+    vec3 distance = getDistance();
+
+    if(attackflg){
+      //転がる
+      rot();
+      dir.y += dir.y * 0.05;
+      if( getGround) {
+        attackflg = false;
+        count = 30;
+      }
+      return;
+    }
+
+    if(noticeflg){
+      count++;
+      if(count == 100){
+        presevedir = dir;
+        dir *= 0.001;
+        dist = getPlayerPos().xz.length;
+        return;
+      }else if(count == 130){
+        dir = presevedir;
+        attack();
+        return;
+      }else if(100 < count){
+        turnangle += getAng(dir,distance) / 30.0;
+        turnangle = min(0.1,turnangle);
+        turnangle *=  min(1.0,abs(distance.length - 2.0) );
+        turn(turnangle);
+        return;
+      }
+    }
+    if(!noticeflg && distance.length < range){
+      presevedir = dir;
+      notice();
+    }else if(count == 30 && noticeflg && distance.length < range){
+      dir = presevedir;  			//notice関数呼び出し前のdirに戻る
+      dir += dir.normalize * 0.01;		//xz成分の長さ0.01のベクトルにする
+    }else if(count > 30 && noticeflg && distance.length < 2*range){
+      dir += dir.normalize() * 0.05;            //加速度をつける
+      dir += -dir*(1.0/( 2*distance.length) );        //接近するに連れて速度を減少させる。
+      turnangle += getAng(dir,distance) / 30.0;
+      turnangle = min(0.1,turnangle);
+      turnangle *=  min(1.0,abs(distance.length - 2.0) );
+      turn(turnangle);
+    }else if(count > 30 && distance.length > range * 2 ){
+      noticeflg = false;
+      count = 0;
+    }else{
+      dir = dir.normalize() * 0.01;
+      turnangle = 0.0;
+    }
+    //衝突オブジェクトを変形
+    transFormCollision();
+  }
+
+
+  void move(){
+    //重力適用
+    dir += gravity;
+    if(aliveflg){
+      rot();
+    }
+    pos = getPos() + dir;
+
+    foreach (ref v; lastVertices) v = (getWorldMatrix * vec4(v, 1)).xyz;
+
+    //衝突応答
+    reactCollision();
+
+  }
+
+
+  void rot(){
+    float[] vertexArray;
+    if(dir.xz.length <= 0) return;
+    foreach (i, ref v; vertices) {
+      vec3 temp = v.xyz;		         		   //3次元ベクトルに代入
+      vec3 tempdir = dir;
+      tempdir.y = 0;
+      temp = rotate(temp,cross(dir,up).normalize(),-dir.length/2.0);	   //各頂点を回転
+      v = vec4(temp, 1.0);				   //３次元→4次元に戻す
+      vertexArray ~= v.array;				   //頂点座標更新用配列に格納
+      lastVertices[i] = v.xyz;
+    }
+    foreach (ref v; vertex){
+      vec3 temp = v.xyz;		    	         	   //3次元ベクトルに代入
+      vec3 tempdir = dir;
+      tempdir.y = 0;
+      temp = rotate(temp,cross(dir,up).normalize(),-dir.length/2.0);	   //各頂点を回転
+      v = vec4(temp, 1.0);				   //３次元→4次元に戻す
+    }
+    custom.update("mVertex", vertexArray);			   //頂点座標の更新
+  }
+  //前転してかつ方向転換
+  void front_turn() {
+    float[] vertexArray;
+    dir = rotate(dir,cross(presevedir,up).normalize(),dir.length/2.0);	   //各頂点を回転
+    foreach (i, ref v; vertices) {
+      vec3 temp = v.xyz;		         		   //3次元ベクトルに代入
+      vec3 tempdir = dir;
+      tempdir.y = 0;
+      temp = rotate(temp,cross(dir,up).normalize(),dir.length/2.0);	   //各頂点を回転
+      v = vec4(temp, 1.0);				   //３次元→4次元に戻す
+      vertexArray ~= v.array;				   //頂点座標更新用配列に格納
+      lastVertices[i] = v.xyz;
+    }
+    foreach (ref v; vertex){
+      vec3 temp = v.xyz;		    	         	   //3次元ベクトルに代入
+      vec3 tempdir = dir;
+      tempdir.y = 0;
+      temp = rotate(temp,cross(dir,up).normalize(),dir.length/2.0);	   //各頂点を回転
+      v = vec4(temp, 1.0);				   //３次元→4次元に戻す
+    }
+    custom.update("mVertex", vertexArray);			   //頂点座標の更新
+  }
+  //y軸回りについて回転
+  void turn(double ang) {
+
+    dir = rotate(dir,vec3(0.0,1.0,0.0),ang);
+    presevedir = rotate(presevedir,vec3(0.0,1.0,0.0),ang);
+
+    float[] vertexArray;
+    foreach (i, ref v; vertices) {
+      vec3 temp = v.xyz;		         	   //3次元ベクトルに代入
+      temp = rotate(temp,vec3(0.0,1.0,0.0),ang);	   //各頂点を回転
+      v = vec4(temp, 1.0);				   //３次元→4次元に戻す
+      vertexArray ~= v.array;				   //頂点座標更新用配列に格納
+      lastVertices[i] = v.xyz;
+    }
+    foreach (ref v; vertex){
+      vec3 temp = v.xyz;		         	   //3次元ベクトルに代入
+      temp = rotate(temp,vec3(0.0,1.0,0.0),ang);	   //各頂点を回転
+      v = vec4(temp, 1.0);				   //３次元→4次元に戻す
+    }
+    custom.update("mVertex", vertexArray);			   //頂点座標の更新
+  }
+
+
+  //プレイヤーの存在に気づいたモーション
+  void notice(){
+    dir = vec3(0.0,0.8,0.0);
+    noticeflg = true;
+  }
+
+  //攻撃
+  void attack(){
+    dir *= attackRate;
+    dir.y = attackUp;
+    attackflg = true;
+  }
+  //死亡モーション
+  void death(){
+    //実質速度を0に
+    dir.x = 0.0;
+    dir.z = 0.0;
+    //体を展開(死亡モーション)
+    if(dount < depOrder.length-1){
+      deathcount += accel;
+      if(deathcountSum + deathcount > 90.0){
+        deathcount = max(0.0,90.0 - deathcountSum);
+      }
+      deathcountSum += deathcount;
+      deploy(deathcount);
+      if(deathcountSum >= 90.0){
+        dount++;
+        deathcount = 0.0;
+        deathcountSum = 0;
+      }
+    }
+  }
+
+  //体を展開
+  void deploy(float ang){
+    float[] vertexarray;
+    int ind = 1 + dount;
+    //展開
+    int f = depOrder[ind-1][0];
+    int s = depOrder[ind-1][1];
+    foreach(i ; (6*ind)..(6*(ind+1))){
+      auto v = vertices[i];
+      vec3 temp = v.xyz;
+      temp = rotate(temp,vertex[f].xyz,(vertex[f]-vertex[s]).xyz.normalize(),toRad(rotateOrder[ind-1]*ang));
+      v = vec4(temp, 1.0);
+      vertices[i] = v;
+    }
+
+    //上面とくっついてる面を開く時、上面も一緒に移動させる。
+    if(f==0 && s==1){
+      foreach(i ; (6*3)..(6*4)){
+        auto v = vertices[i];
+        vec3 temp = v.xyz;
+        temp = rotate(temp,vertex[f].xyz,(vertex[f]-vertex[s]).xyz.normalize(),toRad(ang));
+        v = vec4(temp, 1.0);
+        vertices[i] = v;
+      }
+      int nf = depOrder[ind][0];
+      int ns = depOrder[ind][1];
+      vec3 temp = vertex[nf].xyz;
+      temp = rotate(temp,vertex[s].xyz,(vertex[f]-vertex[s]).xyz.normalize(),toRad(ang));
+      vertex[nf] = vec4(temp, 1.0);
+
+      temp = vertex[ns].xyz;
+      temp = rotate(temp,vertex[f].xyz,(vertex[f]-vertex[s]).xyz.normalize(),toRad(ang));
+      vertex[ns] = vec4(temp, 1.0);
+    }
+    //側面は二つ同時に展開する
+    if(f==5 && s==1){
+      //indをインクリメントしてもう一つの側面も展開
+      ind++;
+      //以下は上記の展開と同じ
+      f = depOrder[ind-1][0];
+      s = depOrder[ind-1][1];
+      foreach(i ; (6*ind)..(6*(ind+1))){
+        auto v = vertices[i];
+        vec3 temp = v.xyz;
+        temp = rotate(temp,vertex[f].xyz,(vertex[f]-vertex[s]).xyz.normalize(),toRad(rotateOrder[ind-1]*ang));
+        v = vec4(temp, 1.0);
+        vertices[i] = v;
+      }
+    }
+
+    //頂点座標の更新
+    foreach(ref i ; vertices) vertexarray ~= i.array;
+    custom.update("mVertex", vertexarray);
+  }
+
+  override bool draw() {
+    custom.draw();
+    return true;
+  }
+}

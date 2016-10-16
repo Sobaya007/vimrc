@@ -1,0 +1,47 @@
+module collision.collisionObject.capsule;
+
+import collision.imports;
+
+class CollisionCapsule : CollisionObject {
+
+  public:
+    vec3 start, end;
+    float radius;
+    this (vec3 start, vec3 end, float radius, void delegate(Array!CollisionInfo info) listener) {
+      this.start = start;
+      this.end = end;
+      this.radius = radius;
+      this.listener = listener;
+      init();
+      super(new sbylib.physics3d.PhysicalCapsule.PhysicalCapsule(start, end, radius));
+    }
+
+    override void update() {
+      updateAABB();
+      super.update();
+    }
+
+<<<<<<< HEAD
+    override uint getOrder() {
+      return 20;
+    }
+
+=======
+>>>>>>> crystal_fix
+  protected:
+    void init() {
+      updateAABB();
+    }
+
+    void updateAABB() {
+      _aabb.minimum.x = min(start.x-radius, end.x-radius);
+      _aabb.minimum.y = min(start.y-radius, end.y-radius);
+      _aabb.minimum.z = min(start.z-radius, end.z-radius);
+      _aabb.maximum.x = max(start.x+radius, end.x+radius);
+      _aabb.maximum.y = max(start.y+radius, end.y+radius);
+      _aabb.maximum.z = max(start.z+radius, end.z+radius);
+      _aabb.maximum += 1e-1;
+      _aabb.minimum -= 1e-1;
+    }
+
+}

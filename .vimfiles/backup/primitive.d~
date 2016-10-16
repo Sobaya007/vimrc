@@ -1,0 +1,104 @@
+module sbylib.primitive.Primitive;
+
+import sbylib;
+
+/*
+図形を表すクラスです。
+基本はposとorientation、そしてdrawを提供する抽象クラスですが、
+演算子オーバーロードに加え、WorldObjectの作用で定義される変換行列を自動的に生成します。
+描画は
+①コンストラクタに投げられたCustomObjectに委譲
+②コンストラクタに投げられた頂点及びインデックスからCustomObjectを作成し、委譲
+③オーバーライドに託す
+のいずれかになります。
+オーバーライドに託す場合にはデフォルトコンストラクタを使いますが、デフォルトコンストラクタを使いながらオーバーライドされていなかった場合にはエラーとします。
+継承に際しては
+・draw
+・static getVertices
+・static getIndices
+を実装してください
+*/
+
+abstract class Primitive : WorldObject, Drawable {
+
+	private mat4 matWorld = mat4.identity;
+	private bool matWorldUpdateFlag = false;
+	private mat4 mat = mat4.identity;
+	private bool matUpdateFlag = false;
+	private mat4 matAll = mat4.identity;
+	protected CustomObject custom;
+	private bool customAssigned = false;
+
+	this() {
+	}
+
+	this(ref CustomObject custom) {
+		this.custom = custom;
+		customAssigned = true;
+	}
+
+	this(vec3[] vertex, uint[][] faceIndexList, Material mat, ShaderProgram shader) in {
+		assert(faceIndexList.all!(a => a.length >= 3), "some face have less than 3 indices.");
+	} body {
+		custom = new CustomObject(mat, shader, Prim.Triangle);
+		custom.beginMesh;
+		custom.addAttribute!(3, "mVertex")(vertex.map!(a => a.array).reduce!((a,b) =>a ~ b), GpuSendFrequency.Static);
+		custom.setIndex(faceIndexList.map!(faceIndex => iota(1,faceIndex.length-1).map!(idx => [faceIndex[0], faceIndex[idx], faceIndex[idx+1]]).reduce!((a,b) =>a ~ b)).reduce!((a,b) =>a ~ b), GpuSendFrequency.Static);
+		custom.endMesh;
+		customAssigned = true;
+	}
+
+	void opOpAssign(string op)(vec3 v) {
+		static if (op == "*") {
+			mat *= mat4.scale(v);
+			matUpdateFlag = true;
+		} else static if (op == "/") {
+			mat *= mat4.scale(vec3(1) / v);
+			matUpdateFlag = true;
+		} else static if (op == "+") {
+			pos = getPos + v;
+			matUpdateFlag = true;
+		} else static if (op == "-") {
+			pos = getPos - v;
+			matUpdateFlag = true;
+		} else {
+			static assert(false);
+		}
+	}
+
+	void opOpAssign(string op)(mat4 m) {
+		static if (op == "*") {
+			mat *= m;
+			matUpdateFlag = true;
+		}
+	}
+
+
+	mat4 getWorldMatrix() {
+		if (matWorldUpdateFlag) {
+			matWorld = mat4.translate(getPos) * getOrientation.toMatrix4;
+		}
+		if (matUpdateFlag || matWorldUpdateFlag) {
+			matWorldUpdateFlag = false;
+			matUpdateFlag = false;
+			matAll = matWorld * mat;
+		}
+		return matAll;
+	}
+
+	CustomObject getCustomObject() {
+		return custom;
+	}
+
+	override void pos(vec3 p) @property {
+		super.pos(p);
+		matWorldUpdateFlag = true;
+	}
+
+	override bool draw() in {
+		assert(customAssigned, "Please override draw() when using default constructor.");
+	} body {
+		custom.draw;
+		return true;
+	}
+}

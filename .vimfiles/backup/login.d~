@@ -1,0 +1,8 @@
+import std.stdio, std.string,std.range, std.conv, std.array, std.algorithm, std.math, std.typecons;
+import std.net.curl;
+
+void main() {
+
+	auto content = get("http://ctfq.sweetduet.info:10080/~q6/");
+	writeln(content);
+}

@@ -1,0 +1,16 @@
+import std.stdio, std.string,std.range, std.conv, std.array, std.algorithm, std.math, std.typecons, std.bigint;
+
+void main() {
+  auto N = readln.chomp.to!int;
+  auto tmp = readln.split.to!(int[]);
+  auto start = 0;
+  ulong count = 0;
+  foreach (i; 1..N+1) {
+    if (i == N || tmp[i-1] >= tmp[i]) {
+      auto len = i - start;
+      start = i;
+      count += (1+len) * len / 2;
+    }
+  }
+  writeln(count);
+}

@@ -1,0 +1,10 @@
+#define zero 0
+#define inc(x) x+1
+#define U(a,i) a[i]
+
+#define add(x,0) U({x}, 0)
+#define add(x,y+1) add(inc(x), y)
+
+int main() {
+
+}

@@ -1,0 +1,1204 @@
+Scenes.add((()=>{
+
+  var Theme = Scenes.theme;
+  var jobName = Scenes.jobName;
+  var dailyMessage = Scenes.dailyMessage;
+  var endMessage = Scenes.endMessage;
+  var paramDesc = Scenes.paramDesc;
+
+  var Meeting = Poyo.scene("Meeting",(Po,arg)=>{
+    // arg == true => first meeting (no animation)
+    var scene = {};
+    var slide = Po.ease(1).bounce.out(30);
+    var under = Po.ease(0).cubic.in(10);
+    var dif = 0;
+    var eDif = Po.ease(0).linear.in(10);
+    var disp = (i)=>{
+      var d = new Date("2016/06/08");
+      d.setDate(8+(Schedule.date-dif)*7+i);
+      return {month : d.getMonth()+1, day : d.getDate()};
+    };
+    var es = [];
+    var opening = false;
+    var opener = Po.ease(1).cubic.in(30);
+    var up = Shape.rect(Po.size.x,Po.size.y*0.7).with(Po.button(()=>{
+      if(arg)Po.transit("SDT");
+      else if(es[6].done){
+        if(Schedule.date==6){
+          Po.transit("Report",false);
+          opening = true;
+        }else if(Schedule.date==13){
+          Po.transit("Report",true);
+          opening = true;
+        }else{
+          if(Schedule.allEvents.length==0){
+            Po.transit("ProgressDisplay");
+          }else{
+            Po.transit("EventDisplay");
+          }
+        }
+      }
+    }));
+    var dn = Shape.rect(Po.size.x,Po.size.y).with(Po.button(()=>{
+      if(arg)Po.transit("SDT");
+      else if(es[6].done){
+        if(Schedule.date==6){
+          Po.transit("Report",false);
+          opening = true;
+        }else if(Schedule.date==13){
+          Po.transit("Report",true);
+          opening = true;
+        }else{
+          if(Schedule.allEvents.length==0){
+            Po.transit("ProgressDisplay");
+          }else{
+            Po.transit("EventDisplay");
+          }
+        }
+      }
+    }));
+    var time = 100;
+    for(var i=0;i<7;i++)es.push(Po.ease(0).smooth.inOut(10));
+    Music.loop("sdt");
+    scene.step = ()=>{
+      time-=3;
+      time+=640;
+      time%=640;
+      if(!arg){
+        if(Po.local >= 40 && Po.local < 75){
+          if(Po.local%5==0){
+            es[Po.local/5-8].set(1);
+            Music.once("paper");
+          }
+        }
+        if(Po.local == 60){
+          Schedule.step();
+          dif++;
+          eDif.set(1);
+        }
+      }
+    };
+    scene.spawn = (t,kill)=>{
+      if(t==0)slide.set(0),under.set(1);
+      if(slide.done)kill();
+      time-=3;
+      time+=640;
+      time%=640;
+    };
+    scene.end = (t,kill)=>{
+      if(t==0){
+        if(opening){
+          opener.set(0);
+          under.set(0);
+        }else{
+          slide.set(1);
+          under.set(0);
+        }
+      }
+      if(!opening && slide.done)kill();
+      if(opening && opener.done)kill();
+    }
+    function numT(d,s,sc,dy,r){
+      var dW = Shape.numText(d.toString());
+      var sW = Shape.text(s);
+      var aW = dW.size.x - (dW.size.x + sW.size.x + 0.1) / 2;
+      aW *= sc;
+      Shape.numText(d.toString()).right.scale(sc,sc).translate(aW,dy).with(r);
+      Shape.text(s).left.scale(sc,sc).translate(aW,dy).with(r);
+    }
+    scene.draw = (R,acc)=>{
+      acc();
+      R.translated(0,-Po.size.y*0.7*slide(),()=>{
+        if(!opening){
+          up.with([
+              R.fill(Theme.calendar).shadow(10).draw,
+              R.stroke(2,Theme.frame).draw
+          ]);
+        }
+        function f1(){
+          R.translated(-Po.size.x/4,0,()=>{
+            if(Schedule.date==6){
+              Shape.text("中間").center.scale(120,120).translate(0,Po.size.y*0.24).with([
+                  R.fill(Color.white).draw,
+                  R.stroke(0.02,Theme.text).shadow(3).draw
+              ]);
+              Shape.text("発表").center.scale(120,120).translate(0,Po.size.y*0.44).with([
+                  R.fill(Color.white).draw,
+                  R.stroke(0.02,Theme.text).shadow(3).draw
+              ]);
+            }else if(Schedule.date==12){
+              Shape.text("最終").center.scale(120,120).translate(0,Po.size.y*0.24).with([
+                  R.fill(Color.white).draw,
+                  R.stroke(0.02,Theme.text).shadow(3).draw
+              ]);
+              Shape.text("発表").center.scale(120,120).translate(0,Po.size.y*0.44).with([
+                  R.fill(Color.white).draw,
+                  R.stroke(0.02,Theme.text).shadow(3).draw
+              ]);
+            }else{
+              Shape.text("第"+Schedule.date+"回").center.scale(70,70).translate(0,Po.size.y*0.2).with(R.fill(Theme.text).shadow(3).draw);
+              Shape.text("会合").center.scale(150,150).translate(0,Po.size.y*0.4).with([
+                  R.fill(Color.white).draw,
+                  R.stroke(0.02,Theme.text).shadow(3).draw
+              ]);
+            }
+          });
+        }
+        R.transformed(up,()=>{
+          R.translated(Po.size.x/2,0,()=>{
+            R.translated(-(1-Math.sin(opener()*Math.PI/2))*Po.size.x/2,0,()=>{
+              R.scaled(Math.sin(opener()*Math.PI/2),1,()=>{
+                if(opening){
+                  Shape.polygon([-5,0,-5,Po.size.y*0.7,-1000,Po.size.y*0.7,-1000,0]).with(R.fill(Theme.calendar).shadow(5).draw);
+                  Shape.line(-5,0,-5,Po.size.y*0.7).with(R.stroke(2,Theme.frame).shadow(2).draw);
+                }
+                f1();
+              });
+            });
+            R.translated((1-Math.sin(opener()*Math.PI/2))*Po.size.x/2,0,()=>{
+              R.scaled(Math.sin(opener()*Math.PI/2),1,()=>{
+                if(opening){
+                  Shape.polygon([+5,0,+5,Po.size.y*0.7,1000,Po.size.y*0.7,1000,0]).with(R.fill(Theme.calendar).shadow(5).draw);
+                  Shape.line(+5,0,+5,Po.size.y*0.7).with(R.stroke(2,Theme.frame).shadow(2).draw);
+                }
+                R.translated(Po.size.x*1/4,0,()=>{
+                  numT(disp(dif==1?7:0).month,"月",70,Po.size.y*0.2,R.fill(Theme.text).shadow(3).draw);
+                  numT(disp(dif==1?7:0).day,"日",150,Po.size.y*0.4,[
+                      R.fill(Color.white).draw,
+                      R.stroke(0.02,Theme.text).shadow(3).draw
+                  ]);
+                });
+              });
+            });
+            if(!es[6].done)for(var i=0;i<7;i++){
+              if(es[i]()>0.5)R.scaled(-Math.cos(es[i]()*Math.PI),1,()=>{
+                Shape.rect(Po.size.x/2-5,Po.size.y*0.7).with(Shape.translate(-Po.size.x/2,0)).with([
+                    R.fill(Theme.calendar).shadow(5).draw,
+                    R.stroke(2,Theme.frame).shadow(2).draw
+                ]);
+                if(i==6)f1();
+              });
+            }
+            if(es[0].at()!=0)for(var i=6;i>-1;i--){
+              if(es[i]()<0.5)R.scaled(Math.cos(es[i]()*Math.PI),1,()=>{
+                Shape.rect(Po.size.x/2-5,Po.size.y*0.7).with(Shape.translate(5,0)).with([
+                    R.fill(Theme.calendar).shadow(5).draw,
+                    R.stroke(2,Theme.frame).shadow(2).draw
+                ]);
+                R.translated(Po.size.x*1/4,0,()=>{
+                  numT(disp(i).month,"月",70,Po.size.y*0.2,R.fill(Theme.text).shadow(3).draw);
+                  numT(disp(i).day,"日",150,Po.size.y*0.4,[
+                      R.fill(Color.white).draw,
+                      R.stroke(0.02,Theme.text).shadow(3).draw
+                  ]);
+                });
+              });
+            }
+          });
+        });
+        if(!opening){
+          Shape.line(Po.size.x/2-5,0,Po.size.x/2-5,Po.size.y*0.7).with(R.stroke(2,Theme.frame).shadow(2).draw);
+          Shape.line(Po.size.x/2+5,0,Po.size.x/2+5,Po.size.y*0.7).with(R.stroke(2,Theme.frame).shadow(2).draw);
+        }
+      });
+      R.translated(0,Po.size.y-Po.size.y*0.3*under(),()=>{
+        dn.with([
+            R.fill(Theme.calendar).shadow(10).draw,
+            R.stroke(2,Theme.frame).draw
+        ]);
+        R.withAlpha(eDif(),()=>{
+          var str = dailyMessage[Schedule.date];
+          R.transformed(dn,()=>{
+            Shape.line(0,10,Po.size.x,10).with(R.stroke(2,Theme.frame).shadow(2).draw);
+            R.translated(time,Po.size.y*0.15,()=>{
+              Shape.text(str).center.with(Shape.scale(60,60)).with([
+                  R.fill(Theme.text).draw,
+                  R.translate(-Po.size.x,0).fill(Theme.text).draw,
+                  R.translate(Po.size.x,0).fill(Theme.text).draw
+              ]);
+            });
+          });
+        });
+        R.withAlpha(1-eDif(),()=>{
+          str = (arg?dailyMessage:endMessage)[Schedule.date+(dif==1?-1:0)];
+          R.transformed(dn,()=>{
+            Shape.line(0,10,Po.size.x,10).with(R.stroke(2,Theme.frame).shadow(2).draw);
+            R.translated(time,Po.size.y*0.15,()=>{
+              Shape.text(str).center.with(Shape.scale(60,60)).with([
+                  R.fill(Theme.text).draw,
+                  R.translate(-Po.size.x,0).fill(Theme.text).draw,
+                  R.translate(Po.size.x,0).fill(Theme.text).draw
+              ]);
+            });
+          });
+        });
+      });
+    };
+    return scene;
+  });
+
+  var lastDate = -1;
+  var SDT = Poyo.scene("SDT",(Po,arg)=>{
+    var scene = {};
+    var toPlan = false;
+    var planB = Shape.circle(100).with(Po.button(()=>{
+      Music.once("decide");
+      Po.transit("Plan");
+      toPlan = true;
+    }));
+    planB.translate(Po.size.x,0);
+    var pbScale = Po.ease(1).cubic.out(20),ptScale = Po.ease(1).cubic.out(20);
+    var deskF = Po.ease(-3).cubic.out(10), deskL = Po.ease(-0.01).cubic.out(10);
+    var memberLocation = [
+      [20,85],
+      [130,20],
+      [210,20],
+      [290,20],
+      [370,20],
+      [480,80],
+    ];
+      var memberDirection = ["r", "f", "f", "f", "f", "l"];
+      var memberRect = [];
+
+      //random shuffle
+      var memberOrder = [];
+      for (var i = 0; i < Schedule.memberList.length; i++) memberOrder.push(i);
+      if (lastDate != Schedule.date) {
+        for (var i = 0; i < memberOrder.length*2; i++) {
+          var idx = i % memberOrder.length;
+          var target = Math.floor(Math.random() * memberOrder.length);
+          var tmp = memberOrder[idx];
+          memberOrder[idx] = memberOrder[target];
+          memberOrder[target] = tmp;
+        }
+      }
+      lastDate = Schedule.date;
+      Music.loop("sdt");
+
+      var orderedMemberList = [];
+      for (var i = 0; i < memberOrder.length; i++)
+        orderedMemberList.push(Schedule.memberList[memberOrder[i]]);
+
+      for (var i = 0; i < orderedMemberList.length+1; i++) {
+        var name;
+        if (i == orderedMemberList.length) {
+          name = "y" + memberDirection[i];
+        } else {
+          name = Schedule.getJobInitial(orderedMemberList[i].job) + memberDirection[i];
+        }
+        var img = Picture.get(name);
+        if (i == orderedMemberList.length) i = 5;
+        memberRect[i] = Shape.image(name).scale(60 / img.width, 120 / img.height).translate(memberLocation[i][0], memberLocation[i][1]);
+      }
+      var planStrE = Po.ease(1).cubic.out(20);
+      var sceneEff = Po.ease(0).cubic.out(20);
+      scene.spawn = (t,kill)=>{
+        if(t==0 && arg!=null){
+          sceneEff.force(0.9);
+          planStrE.force(0);
+          ptScale.force(1);
+          pbScale.force(8);
+          sceneEff.set(0);
+          planStrE.set(1);
+          ptScale.set(1);
+          pbScale = Po.ease(8).quint.in(10);
+          pbScale.set(1);
+        }
+        if(pbScale.done){
+          pbScale = Po.ease(1).cubic.out(20);
+          pbScale.set(1);
+          kill();
+        }
+      };
+      scene.end = (t,kill)=>{
+        if(toPlan){
+          if(t==0){
+            sceneEff.set(0.9);
+            planStrE.set(0);
+            ptScale.set(1);
+            pbScale = Po.ease(1).quad.out(10);
+            pbScale.set(8);
+          }
+        }
+      }
+      var selectedCharacterIndex = -1;
+      var lastSelectIndex = -1;
+      var selectedMember = null;
+      var infoBar = Po.ease([0,0,0,0,0,0,0]).cubic.out(20);
+      function setInfoBar(b){
+        var m = selectedMember;
+        if(b){
+          var vt = Util.clone(infoBar());
+          vt[5] = 0;
+          infoBar.force(vt);
+        }
+        if (m != null) {
+          if (m.canGiveAction(ACTION_POYASHIMI)) poyashimi.enable();
+          else poyashimi.disable();
+          if (m.canGiveAction(ACTION_TWITTER)) twitter.enable();
+          else twitter.disable();
+          if (m.canGiveAction(ACTION_BOOK)) book.enable();
+          else book.disable();
+          if (m.canGiveAction(ACTION_MAZAI)) mazai.enable();
+          else mazai.disable();
+        }
+        if(m==null){
+          infoBar.set([0,0,0,0,0,0,0]);
+        }else{
+          var props = ["hp","mp","shiki","skill","ofton"];
+          var v = [];
+          props.forEach((p)=>v.push(m[p]));
+          v.push(1);//image
+          v.push(1);//alpha
+          infoBar.set(v);
+        }
+      }
+      var next = Shape.roundrect(110,60,10).with(Shape.translate(-55,-30)).with(Po.button(()=>{
+        Music.once("decide");
+        Po.dialog("第"+Schedule.date+"回会合を終了します。",["いいえ","はい"],(i,close)=>{
+          close();
+          if(i==1){
+            Po.transit("Meeting",false);
+            toPlan = false;
+          }
+        });
+      }));
+      next.translate(Po.size.x-130+55,210+30);
+      var poyashimi = Shape.rect(150, 25).with(Shape.translate(-75,-12.5)).translate(460+75, 335+15);
+      var twitter = Shape.rect(150, 25).with(Shape.translate(-75,-12.5)).translate(460+75, 370+15);
+      var book = Shape.rect(150, 25).with(Shape.translate(-75,-12.5)).translate(460+75, 405+15);
+      var mazai = Shape.rect(150, 25).with(Shape.translate(-75,-12.5)).translate(460+75, 440+15);
+      var genBtn = (s,action,name,desc) => {
+        s.with(Po.button(() => {
+          if (selectedMember && selectedMember.canGiveAction(action) == false) {
+            Po.dialog("今はできません", ["閉じる"], (i, close) => {
+              close();
+            })
+            return;
+          }
+          Music.once("decide");
+          Po.dialog([name,desc,"よろしいですか？"], ["いいえ", "はい"], (i, close) => {
+            close();
+            if (i == 1) {
+              selectedMember.applyAction(action);
+              setInfoBar(false);
+            }
+          })
+        }));
+        if(selectedMember==null){
+          s.disable();
+        }
+      };
+      genBtn(poyashimi, ACTION_POYASHIMI,"[休ませる]","進捗を一週間休みHPを回復します");
+      genBtn(twitter, ACTION_TWITTER,"[Twitterを許可]","進捗を一週間休み士気を上げます");
+      genBtn(book, ACTION_BOOK,"[本を与える]","進捗を一週間休み技術力を上げます。");
+      genBtn(mazai, ACTION_MAZAI,"[魔剤を与える]","HPを削ってMPを上げます。");
+      var pFlag = false;
+      var confirmButtonFlag = false;
+      var planButtonFlag = false;
+      var actionButtonFlag = [false, false, false, false];
+      var planFlag = false;
+      scene.step = ()=>{
+        if(Po.local == 0){
+          deskF.set(0);
+          Music.once("move");
+        }else if(Po.local == 10){
+          deskL.set(1);
+          Music.once("move");
+        }
+        next.onCollide(Po.mouse.x, Po.mouse.y, (x,y) => {
+          if (confirmButtonFlag == false) {
+            confirmButtonFlag = true;
+            Music.once("over");
+          }
+        }, (x,y) => {
+          confirmButtonFlag = false;
+        });
+        planB.onCollide(Po.mouse.x,Po.mouse.y,(x,y)=>{
+          if(!planB.landed){
+            planB.with(Shape.scale(1.4,1.4));
+            pbScale.force(1/1.4);
+            pbScale.set(1);
+            planB.landed = true;
+            ptScale.set(1.4);
+          }
+          if (planFlag == false) {
+            planFlag = true;
+            Music.play("move");
+          }
+        },(x,y)=>{
+          if(planB.landed){
+            planB.with(Shape.scale(1/1.4,1/1.4));
+            pbScale.force(1.4);
+            pbScale.set(1);
+            planB.landed = false;
+            ptScale.set(1);
+          }
+          if (planFlag == true) {
+            planFlag = false;
+            Music.play("move");
+          }
+        });
+        poyashimi.onCollide(Po.mouse.x,Po.mouse.y, (x,y) => {
+          if (actionButtonFlag[0] == false) {
+            actionButtonFlag[0] = true;
+            Music.once("over");
+          }
+        }, (x,y) => {
+          actionButtonFlag[0] = false;
+        });
+        twitter.onCollide(Po.mouse.x,Po.mouse.y, (x,y) => {
+          if (actionButtonFlag[1] == false) {
+            actionButtonFlag[1] = true;
+            Music.once("over");
+          }
+        }, (x,y) => {
+          actionButtonFlag[1] = false;
+        });
+        book.onCollide(Po.mouse.x,Po.mouse.y, (x,y) => {
+          if (actionButtonFlag[2] == false) {
+            actionButtonFlag[2] = true;
+            Music.once("over");
+          }
+        }, (x,y) => {
+          actionButtonFlag[2] = false;
+        });
+        mazai.onCollide(Po.mouse.x,Po.mouse.y, (x,y) => {
+          if (actionButtonFlag[3] == false) {
+            actionButtonFlag[3] = true;
+            Music.once("over");
+          }
+        }, (x,y) => {
+          actionButtonFlag[3] = false;
+        });
+        for (var i = 0; i < orderedMemberList.length; i++) {
+          if(selectedCharacterIndex != i){
+            memberRect[i].onCollide(Po.mouse.x, Po.mouse.y, (x,y) => {
+              if (orderedMemberList[i].state == STATE_KIKYO || orderedMemberList[i].state == STATE_ZEKKI) return;
+              if (lastSelectIndex != i) {
+                Music.once("over");
+              }
+              lastSelectIndex = selectedCharacterIndex;
+              selectedCharacterIndex = i;
+              selectedMember = orderedMemberList[selectedCharacterIndex];
+              [poyashimi,twitter,book,mazai].forEach((s)=>{
+                s.enable();
+              });
+              setInfoBar(true);
+            });
+          }
+        }
+        memberRect[5].onCollide(Po.mouse.x, Po.mouse.y, (x,y) => {
+          if (pFlag == false) {
+            pFlag = true;
+            if (selectedCharacterIndex >= 0)
+              Music.once("over");
+          }
+          selectedMember = null;
+          selectedCharacterIndex = -1;
+          setInfoBar(true);
+          poyashimi.disable();
+          twitter.disable();
+          book.disable();
+          mazai.disable();
+
+        }, (x,y) => {
+          pFlag = false;
+        });
+      };
+      scene.draw = (R,acc)=>{
+        //背景
+        Shape.rect(Po.size.x,Po.size.y).with(R.fill(Theme.bg).draw);
+        R.translated(0,0,()=>{
+          Shape.text("第"+Schedule.date+"回会合").leftUp.scale(30,30).translate(15,15).with(R.fill(Theme.text).shadow(5).draw);
+          var s;
+          if(Schedule.date==0)s = "予定作成";
+          else s = "進捗確認";
+          Shape.text(s).leftUp.scale(30,30).translate(15,45).with(R.fill(Theme.text).shadow(5).draw);
+        });
+        //垂直な棒
+        Shape.rect(10,Po.size.y*0.4).translate(Po.size.x*0.65,Po.size.y*0.6).with([
+            R.fill(Theme.bar).shadow(2).draw,
+            R.stroke(2,Theme.frame).draw
+        ]);
+        //水平な棒
+        Shape.rect(Po.size.x,10).translate(0,Po.size.y*0.6).with([
+            R.fill(Theme.bar).shadow(2).draw,
+            R.stroke(2,Theme.frame).draw
+        ]);
+        R.withAlpha(deskL(),()=>{
+          R.translated(0,-200*(1-deskL()),()=>{
+            for (var i = 0; i < orderedMemberList.length; i++) {
+              if (orderedMemberList[i].state == STATE_KIKYO || orderedMemberList[i].state == STATE_ZEKKI) continue;
+              memberRect[i].with(R.draw);
+              var mLoc = memberLocation[i];
+              Shape.text(orderedMemberList[i].name).center.scale(18,18).translate(mLoc[0] + 30, mLoc[1]-5).with(R.fill(Color.black).draw);
+            }
+          });
+        });
+
+        {
+          var names = ["HP","MP","士気","技術力","起床力"];
+          //キャラ情報を下のほうに表示
+          R.translated(50 * (selectedMember != null  ? 1 : 0), 0, () => {
+            R.withAlpha(infoBar()[6],()=>{
+              var names = ["HP","MP","士気","技術力","起床力"];
+              var mults = [1/5,1/5,2,1/3,1/0.9];
+              for(var i=0;i<5;i++){
+                //四角
+                R.lightened(0.3,()=>{
+                  Shape.rect(85*infoBar()[i]*mults[i],15).translate(195,325+i*30).with([
+                      R.fill(Theme.props[i]).shadow(4).draw,
+                      R.stroke(3,Color.apply(Theme.props[i],0.5,0.0)).draw
+                  ]);
+                });
+              }
+              //画像
+              if(selectedMember != null){
+                var name = Schedule.getJobInitial(selectedMember.job) + "f";
+                var img = Picture.get(name);
+                R.withAlpha(infoBar()[5],()=>{
+                  Shape.image(name).scale(80 / img.width, 160 / img.height).translate(-35,114*3-30+(1-infoBar()[5])*30).with(R.draw);
+                  Shape.text(selectedMember.name).center.scale(22,22).translate(70,335).with(R.fill(Color.black).draw);
+                });
+              }
+            });
+            R.withAlpha(1-infoBar()[6],()=>{
+              for(var i=0;i<5;i++){
+                //文字
+                Shape.text(paramDesc[i]).left.scale(20,20).translate(100,330+i*30).with(R.fill(Theme.text).shadow(3).draw);
+              }
+            });
+            for(var i=0;i<5;i++){
+              //文字
+              Shape.text(names[i]).left.scale(30,30).translate(115-(1-infoBar()[6])*95,330+i*30).with(R.fill(Color.black).shadow(2).draw);
+            }
+            //アクション
+            if (selectedMember != null) {
+              var imgName = null;
+              switch (selectedMember.state) {
+                case STATE_POYASHIMI:
+                  imgName = "poyashimi";
+                  break;
+                case STATE_TWITTER:
+                  imgName = "twitter";
+                  break;
+                case STATE_BOOK:
+                  imgName = "book";
+                  break;
+              }
+              if (selectedMember.state == STATE_KIKYO || selectedMember.hp <= 0) imgName = "kikyo";
+              if (imgName != null) {
+                var img = Picture.get(imgName);
+                R.withAlpha(infoBar()[5],()=>{
+                  Shape.image(imgName).scale(50 / img.width, 50 / img.height).translate(45, 400).with(R.draw);
+                });
+              }
+            }
+          });
+        }
+
+        //自分
+        memberRect[memberRect.length-1].with(R.draw);
+        //机
+        R.translated(Po.size.x/2-40,0,()=>{
+          if(deskL()>0){
+            Shape.rect(8,90*deskL()).translate(-170,110).with([
+                R.fill(Theme.wood).shadow(5).draw,
+                R.stroke(2,Theme.frame).draw
+            ]);
+            Shape.rect(8,90*deskL()).translate(162,110).with([
+                R.fill(Theme.wood).shadow(5).draw,
+                R.stroke(2,Theme.frame).draw
+            ]);
+            Shape.rect(10,100*deskL()).translate(-190,170).with([
+                R.fill(Theme.wood).shadow(5).draw,
+                R.stroke(2,Theme.frame).draw
+            ]);
+            Shape.rect(10,100*deskL()).translate(180,170).with([
+                R.fill(Theme.wood).shadow(5).draw,
+                R.stroke(2,Theme.frame).draw
+            ]);
+          }
+          R.translated(0,deskF()*100,()=>{
+            Shape.polygon([-180,100,-200,180,200,180,180,100,-180,100]).with([
+                R.fill(Theme.button).shadow(20).draw,
+                R.stroke(2,Theme.frame).draw
+            ]);
+            Shape.polygon([-200,180,-200,190,200,190,200,180,-200,180]).with([
+                R.fill(Theme.side).shadow(20).draw,
+                R.stroke(2,Theme.frame).draw
+            ]);
+          });
+        });
+        //マーカー
+        if (selectedCharacterIndex >= 0) {
+          var mLoc = memberLocation[selectedCharacterIndex];
+          var b = selectedCharacterIndex == 0 ? 0 : -40;
+          Shape.image("cursor").translate(mLoc[0]+12,mLoc[1]+120+(1-infoBar()[5])*30+b).with(R.shadow(10).draw);
+        }
+        next.with([
+            R.fill(Theme.button).shadow(next.hover*3+5).draw,
+            R.stroke(2,Theme.frame).draw
+        ]);
+        R.transformed(next,()=>{
+          Shape.text("完了").center.scale(40,40).with(R.fill(Theme.text).draw);
+        });
+
+        //アクション一覧
+        Shape.text("アクション").center.scale(30,30).translate(495,315).with(R.fill(Theme.text).draw);
+        var actName = ["休ませる","Twitterを許可","本を与える","魔剤を与える"];
+        var actShape = [poyashimi,twitter,book,mazai];
+        actShape.forEach((s,i)=>{
+          R.darkened((1-s.enabled)*0.3,()=>{
+            s.with([
+                R.fill(Theme.button).shadow(infoBar()[6]*(s.hover*5+5)).draw,
+                R.stroke(2,Theme.frame).draw
+            ]);
+            R.transformed(s,()=>{
+              Shape.text(actName[i]).center.scale(20,20).with(R.fill(Theme.text).draw);
+            });
+          });
+        });
+
+        R.lightened(sceneEff(),()=>{
+          R.transformed(planB,()=>{
+            R.scaled(pbScale(),pbScale(),()=>{
+              planB.with([
+                  R.scale(1.0,1.0).fill(Color.magenta).shadow(planB.hover*10+5).draw,
+                  R.scale(1.0,1.0).stroke(4,Color.pink).shadow(planB.hover*10+5).draw,
+              ]);
+            });
+          });
+        })
+        R.translated(Po.size.x*planStrE(),0,()=>{
+          R.scaled(ptScale(),ptScale(),()=>{
+            Shape.text("予定").center
+              .scale(planStrE()*10+40,planStrE()*10+40)
+              .rotate(planStrE()*Math.PI/8)
+              .translate(45-planStrE()*90,30+planStrE()*10)
+              .with(R.fill(Color.mix(Theme.text,planStrE(),Color.white)).shadow(5-3*planStrE()).draw);
+          });
+        });
+
+        acc();
+      };
+      return scene;
+  });
+
+  var Plan = Poyo.scene("Plan",(Po)=>{
+    var scene = {};
+
+    var preAnim = Po.ease(0).cubic.out(10);
+    var anim = Po.ease(0).cubic.out(10);
+    var disp = null;
+    scene.spawn = (t,kill)=>{
+      if(t==5)preAnim.set(1);
+      if(t==10)anim.set(1);
+      if(preAnim.done)kill();
+    }
+    var next = Shape.roundrect(150,60,10).with(Shape.translate(-75,-30)).with(Po.button(()=>{
+      Music.once("decide");
+      var a,as=["まだ","棄却","確定"];
+      if(Schedule.date==0)a="これでいいですか？";
+      else{
+        a=["メンバーの士気が下がりますが","これでいいですか？"];
+        var b = true;
+        for(var i=0;i<Schedule.memberList.length;i++){
+          if(Schedule.memberList[i].addTaskList.length!=0)b=false;
+          if(Schedule.memberList[i].removeTaskIdList.length!=0)b=false;
+        }
+        if(b){
+          a=["戻りますか？"];
+          as=["いいえ","はい"];
+        }
+      }
+      Po.dialog(a,as,(i,close)=>{
+        close();
+        if(i==1){
+          Schedule.memberList.forEach((m)=>{
+            m.revert();
+          })
+          Po.transit("SDT",1);
+        }else if(i==2){
+          Schedule.memberList.forEach((m)=>{
+            m.confirm();
+          })
+          Po.transit("SDT",1);
+        }
+      });
+    }));
+    next.translate(Po.size.x-100,50);
+    var Task;
+    var tabX = Po.size.x * 0.15;
+    var tabY = Po.size.y * 0.05;
+    var tabW = Po.size.x * 0.51;
+    var tabH = Po.size.y * 0.7;
+    var tdX = Po.ease(0).cubic.inOut(5);
+    if(Schedule.date<2)tdX.force(0);
+    else if(Schedule.date>8)tdX.force(8);
+    else tdX.force(Schedule.date-2);
+    var itX = Po.ease(0).cubic.inOut(10);
+    scene.step = ()=>{
+      disp = null;
+      if(Po.mouse.x>=0 && Po.mouse.y>=0 && Po.mouse.x <= Po.size.x && Po.mouse.y <= Po.size.y){
+        Task.regd.forEach((t)=>{
+          t.s.onCollide(Po.mouse.x,Po.mouse.y,()=>{
+            disp = t;
+          });
+        });
+        Task.item.forEach((t)=>{
+          if(t.e==itX.at())t.s.onCollide(Po.mouse.x,Po.mouse.y,()=>{
+            disp = t;
+          });
+        });
+        if(Task.carry){
+          disp=Task.carry;
+        }
+      }
+      if(disp){
+        disp.task = null;
+        for(var i=0;i<Schedule.allTaskInfo.length;i++){
+          if(Schedule.allTaskInfo[i].id == disp.i)disp.task = Schedule.allTaskInfo[i];
+        }
+        function retriveName(list){
+          var strs = [];
+          list.forEach((index)=>{
+            for(var i=0;i<Schedule.allTaskInfo.length;i++){
+              if(Schedule.allTaskInfo[i].id == index)strs.push({e:Schedule.allTaskInfo[i].job,t:Schedule.allTaskInfo[i].name});
+            }
+          });
+          return strs;
+        }
+        if(disp.task){
+          disp.depend = retriveName(disp.task.depend);
+          disp.halfDepend = retriveName(disp.task.halfDepend);
+        }else{
+          disp.depend = disp.halfDepend = [];
+        }
+      }
+    };
+    var table = Shape.rect(tabW,tabH);
+    table.translate(tabX,tabY);
+    var leftBtn = Shape.polygon([0,0,30,-15,30,15,0,0]).with(Shape.translate(15,-7)).with(Po.button(()=>{
+      Music.once("move");
+      if(tdX.at()!=0){
+        tdX.set(tdX.at()-1);
+        Task.setButtons(tdX.at(),itX.at());
+        Task.reiD.force(-1);
+        Task.reiD.set(0);
+        if(tdX.at()==0)leftBtn.disable();
+        rightBtn.enable();
+      }
+    }));
+    var rightBtn = Shape.polygon([0,0,-30,-15,-30,15,0,0]).with(Shape.translate(-15,-7)).with(Po.button(()=>{
+      Music.once("move");
+      if(tdX.at()!=8){
+        tdX.set(tdX.at()+1);
+        Task.setButtons(tdX.at(),itX.at());
+        Task.reiD.force(1);
+        Task.reiD.set(0);
+        if(tdX.at()==8)rightBtn.disable();
+        leftBtn.enable();
+      }
+    }));
+    leftBtn.translate(tabX+10,tabY+tabH/12);
+    rightBtn.translate(tabX+tabW-10,tabY+tabH/12);
+    if(tdX.at()==0)leftBtn.disable();
+    if(tdX.at()==8)rightBtn.disable();
+    var leftItm = Shape.rect(30,30).with(Shape.translate(0,-15)).with(Po.button(()=>{
+      Music.once("move");
+      if(itX.at()!=0){
+        itX.set(itX.at()-1);
+        Task.setButtons(tdX.at(),itX.at());
+        Task.itmD.force(-1);
+        Task.itmD.set(0);
+      }
+    }));
+    var rightItm = Shape.rect(30,30).with(Shape.translate(-30,-15)).with(Po.button(()=>{
+      Music.once("move");
+      if(itX.at()!=3){
+        itX.set(itX.at()+1);
+        Task.setButtons(tdX.at(),itX.at());
+        Task.itmD.force(1);
+        Task.itmD.set(0);
+      }
+    }));
+    leftItm.translate(Po.size.x*0.7+15,Po.size.y*0.8-20);
+    rightItm.translate(Po.size.x-5,Po.size.y*0.8-20);
+
+    function numT(d,s,sc,dy,r){
+      var dW = Shape.numText(d.toString());
+      var sW = Shape.text(s);
+      var aW = dW.size.x - (dW.size.x + sW.size.x + 0.1) / 2;
+      aW *= sc;
+      Shape.numText(d.toString()).right.scale(sc,sc).translate(aW,dy).with(r);
+      Shape.text(s).left.scale(sc*0.9,sc*0.9).translate(aW,dy).with(r);
+    }
+
+    var itemX = Po.size.x*0.7+10;
+    var itemY = Po.size.y*0.2+10;
+    var addStrE = Po.ease(1).cubic.out(20);
+    Task = (()=>{
+      var k = {};
+      k.carry = null;
+      k.reiD = Po.ease(0).cubic.inOut(5);
+      k.itmD = Po.ease(0).cubic.inOut(10);
+
+      k.regd = [];//registered tasks
+      k.item = [];//free tasks
+      var jobx = [0,0,0,0];
+      var joby = [0,0,0,0];
+      Schedule.allTask.forEach((t)=>{
+        if(t.assign != null){
+          var mem = 0;
+          for(var i=0;i<Schedule.memberList.length;i++){
+            if(t.assign == Schedule.memberList[i])mem = i;
+          }
+          k.regd.push({
+            x:t.startDate, // date
+            y:mem, // member
+            e:t.assign.job, // job
+            w:t.info.period, // width
+            p:t.shinchoku, // progress
+            i:t.info.id, // id
+            t:t.info.name // title
+          });
+        }else{
+          var i = t.info.job;
+          var hei = [27,37,43,43];
+          if(jobx[i]+t.info.period > 2)jobx[i]=0, joby[i]++;
+          k.item.push({
+            x:10+80*jobx[i],
+            y:10+hei[i]*joby[i],
+            e:i,
+            w:t.info.period,
+            p:t.shinchoku,
+            i:t.info.id,
+            t:t.info.name
+          });
+          jobx[i]+=t.info.period;
+        }
+      });
+      function registerCarry(){
+        var px,py;
+        k.carry.s.affined((v)=>{
+          px = v[2], py = v[5];
+        })
+        Po.removeDrag(k.carry.s);
+        var tx = Math.floor((px-tabX)/(tabW/4)+0.5);
+        var ty = Math.floor((py-tabY)/(tabH/6)+0.5)-1;
+        var valid = true;
+        valid = !(ty<0 || ty>4 || tx>3);
+        valid = valid && (tx+tdX.at() >= 0);
+        valid = valid && (tx+k.carry.w+tdX.at() <= 12);
+        valid = valid && ty < Schedule.memberList.length;
+        valid = valid && Schedule.memberList[ty].job == k.carry.e;
+        valid = valid && tx+tdX.at()+k.carry.w*k.carry.p >= Schedule.date;
+        valid = valid && Schedule.memberList[ty].state != STATE_KIKYO && Schedule.memberList[ty].state != STATE_ZEKKI;
+        if(valid)k.regd.forEach((r)=>{
+          if(valid && r.y==ty){
+            var col = Util.intersect(r.x+0.1,0,r.w-0.2,1)(tx+tdX.at()+0.1,0,k.carry.w-0.2,1);
+            if(col!=null)valid = false;
+          }
+        });
+        if(valid){
+          var info = null;
+          for(var i=0;i<Schedule.allTaskInfo.length;i++){
+            if(Schedule.allTaskInfo[i].id == k.carry.i){
+              info = Schedule.allTaskInfo[i];
+            }
+          }
+          if(!info || !Schedule.memberList[ty].addTask(info,tx+tdX.at())){
+            valid = false;
+          }
+        }
+        if(!valid){//item
+          if(py<itemY+20 || py>Po.size.y*0.8-70 || tx<4)px = itemX + 20, py = itemY + 20;
+          k.item.push({x:px-itemX,y:py-itemY,e:k.carry.e,i:k.carry.i,p:k.carry.p,w:k.carry.w,t:k.carry.t});
+        }else{
+          k.regd.push({x:tx+tdX.at(),y:ty,e:k.carry.e,i:k.carry.i,p:k.carry.p,w:k.carry.w,t:k.carry.t});
+        }
+        k.setButtons(tdX.at(),itX.at());
+        k.carry = null;
+      }
+      k.setButtons = (tx,ix)=>{
+        k.regd.forEach((t)=>{
+          if(t.sr)Po.removeButton(t.sr);
+        });
+        k.item.forEach((t)=>{
+          if(t.sr)Po.removeButton(t.sr);
+        });
+        k.regd.forEach((t)=>{
+          t.s = Shape.roundrect(t.w*tabW/4-10,tabH/6-20,5);
+          t.s.translate(tabX+(t.x-tx)*tabW/4+5,tabY+tabH/6+t.y*tabH/6+10);
+          var sec = Util.intersect(tabX,tabY,tabW,tabH)(tabX+(t.x-tx)*tabW/4+5,tabY+tabH/6+t.y*tabH/6+5,t.w*tabW/4-10,tabH/6-20,5);
+          if(sec && Schedule.memberList[t.y].state != STATE_ZEKKI && t.p<1.0){
+            t.sr = Shape.roundrect(sec.w,sec.h,5).with(Po.button(()=>{
+              Po.removeButton(t.sr);
+              for(var i=0;i<k.regd.length;i++)if(k.regd[i] == t){k.regd.splice(i,1);break;}
+              k.carry = {t:t.t,w:t.w,e:t.e,p:t.p,i:t.i,s:Shape.roundrect(t.w*tabW/4-10,tabH/6-20,5).with(Po.drag(0,0,Po.size.x,Po.size.y))};
+              k.carry.s.onRelease = ()=>{
+                registerCarry();
+              };
+              k.carry.s.translate(tabX+(t.x-tx)*tabW/4+5,tabY+tabH/6+t.y*tabH/6+10);
+              k.carry.s.forceGrab(Po.mouse.x,Po.mouse.y);
+              Schedule.memberList[t.y].removeTask(t.i);
+            }));
+            t.sr.translate(sec.x,sec.y);
+          }
+        });
+        k.item.forEach((t)=>{
+          t.s = Shape.roundrect(t.w*tabW/4-10,tabH/6-20,5);
+          t.s.translate(itemX+t.x+(t.e-ix)*(Po.size.x*0.3-10),itemY+t.y);
+          var sec = Util.intersect(itemX,itemY,Po.size.x*0.3-10,Po.size.y*0.6-10)(itemX+t.x+(t.e-ix)*(Po.size.x*0.3-10),itemY+t.y,t.w*tabW/4-10,tabH/6-20,5);
+          if(t.e==itX.at() && sec){
+            t.sr = Shape.roundrect(sec.w,sec.h,5).with(Po.button(()=>{
+              Po.removeButton(t.sr);
+              for(var i=0;i<k.item.length;i++)if(k.item[i] == t){k.item.splice(i,1);break;}
+              k.carry = {t:t.t,w:t.w,e:t.e,p:t.p,i:t.i,s:Shape.roundrect(t.w*tabW/4-10,tabH/6-20,5).with(Po.drag(0,0,Po.size.x,Po.size.y))};
+              k.carry.s.onRelease = ()=>{
+                registerCarry();
+              };
+              k.carry.s.translate(itemX+t.x+(t.e-ix)*(Po.size.x*0.3-10),itemY+t.y);
+              k.carry.s.forceGrab(Po.mouse.x,Po.mouse.y);
+            }));
+            t.sr.translate(sec.x,sec.y);
+          }
+        });
+        if(k.regd.length==0)addStrE.set(1);
+        else addStrE.set(0);
+      };
+      k.setButtons(tdX.at(),itX.at());
+      return k;
+    })();
+
+    scene.draw = (R)=>{
+      if(preAnim.done){
+        Shape.rect(Po.size.x,Po.size.y).with(R.fill(Color.white).draw);
+        R.translated(0,Po.size.y*anim()-Po.size.y,()=>{
+          Shape.rect(tabW,tabH).invert()
+            .translate(tabX,tabY).with([
+                R.fill(Theme.planBg).shadow(10).draw,
+                R.stroke(2,Theme.frame).draw
+            ]);
+        });
+        Shape.text("予定").leftUp.scale(40,40).translate(15,15).with(R.fill(Theme.text).shadow(5).draw);
+      }
+      var pw = Po.size.x;
+      var px = Po.size.x*0.7;
+      var py = -Po.size.y*0.6*preAnim();
+      Shape.polygon([px,0,px,py,pw,py,pw,py+10,px+10,py+10,px+10,0]).translate(0,Po.size.y*(1-0.2*preAnim())).with([
+          R.fill(Theme.button).shadow(4).draw,
+          R.stroke(2,Theme.frame).draw
+      ]);
+      Shape.rect(Po.size.x,10).translate(0,Po.size.y*(1-0.2*preAnim())).with([
+          R.fill(Theme.button).shadow(4).draw,
+          R.stroke(2,Theme.frame).draw
+      ]);
+      if(disp==null)R.translated(Po.size.x/2,Po.size.y*(1.4-0.5*preAnim()),()=>{
+        Shape.text("メンバー毎の計画表を立てましょう!").center.scale(45,45).with([
+            R.fill(Theme.text.alpha(addStrE()*(0.1+0.2*(1+Math.sin(Po.time*4*Math.PI/180))/2))).draw
+        ]);
+      });
+
+      R.translated(200*(1-anim()),0,()=>{
+        next.with([
+            R.fill(Theme.button).shadow(next.hover*3+5).draw,
+            R.stroke(2,Theme.frame).draw
+        ]);
+        R.transformed(next,()=>{
+          Shape.text("決定").center.scale(40,40).with(R.fill(Theme.text).draw);
+        });
+      });
+      function drawTask(t,isRegd){
+        if(isRegd && Schedule.memberList[t.y].state == STATE_ZEKKI){
+          R.darkened(0.2,()=>{
+            R.lightened(0.9,()=>{
+              t.s.with(R.fill(Theme.jobs[t.e]).shadow(5).draw);
+            });
+          });
+        }else{
+          R.lightened(0.9,()=>{
+            t.s.with(R.fill(Theme.jobs[t.e]).shadow(5).draw);
+          });
+          R.transformed(t.s,()=>{
+            R.clipped(0,0,t.w*t.p*tabW/4,tabH/6,()=>{
+              t.s.with(R.fill(Theme.jobs[t.e]).draw);
+            });
+          });
+        }
+        R.darkened(0.3,()=>{
+          t.s.with(R.stroke(2,Theme.jobs[t.e]).draw);
+        });
+        var sz = 30;
+        sz = Math.min(sz,(t.w*tabW/4-20)/Shape.text(t.t).size.x);
+        R.transformed(t.s,()=>{
+          Shape.text(t.t).leftUp.scale(sz,sz).translate(5,5+(35-sz)/2).with(R.fill(Color.black).draw);
+        });
+      }
+      R.clipped(0,0,Po.size.x,Po.size.y*0.8,()=>{
+        R.transformed(table,()=>{
+          for(var i=0;i<Schedule.memberList.length;i++){
+            var j = Schedule.memberList[i].job;
+            R.translated(0,tabH*(i+1)/6,()=>{
+              var name = Schedule.getJobInitial(j)+"r";
+              var img = Picture.get(name);
+              R.translated(100*(-1+anim())-50,0,()=>{
+                //R.darkened(Schedule.memberList[i].state == STATE_KIKYO ? 0.3 : 0, ()=>{
+                Shape.image(name).scale(40/img.width,80/img.height).with(R.fill(Theme.jobs[j]).draw);
+                //});
+                Shape.text(Schedule.memberList[i].name).right.scale(18,18).translate(0, 10).with(R.fill(Color.black).draw);
+              })
+            });
+          }
+        });
+      });
+
+      R.translated(0,Po.size.y*anim()-Po.size.y,()=>{
+        R.clipped(tabX,tabY,tabW,tabH,()=>{
+          R.transformed(table,()=>{
+            Shape.line(5,tabH/6*0.7,tabW-5,tabH/6*0.7).with(R.stroke(1,Color.black).draw);
+            for(var i=0;i<Schedule.memberList.length;i++){
+              var j = Schedule.memberList[i].job;
+              R.translated(0,tabH*(i+1)/6,()=>{
+                var unableToSee = Schedule.memberList[i].state == STATE_KIKYO || Schedule.memberList[i].state == STATE_ZEKKI;
+                R.darkened(unableToSee?0.2:0,()=>{
+                  R.lightened(0.7,()=>{
+                    Shape.rect(tabW,tabH/6).with(R.fill(Theme.jobs[j]).draw);
+                  });
+                  Shape.rect(Schedule.date*tabW/4-tdX()*tabW/4,tabH/6).with(R.fill(Theme.jobs[j]).draw);
+                });
+              });
+            }
+            for(var i=0;i<5;i++){
+              R.translated(0,tabH*(i+1)/6,()=>{
+                Shape.line(5,0,tabW-5,0).with(R.stroke(i==0?2:1,Color.black).draw);
+              });
+            }
+            R.translated(-tdX()*tabW/4,0,()=>{
+              for(var i=0;i<12;i++){
+                R.translated(tabW*i/4,0,()=>{
+                  if(i%4==0)Shape.line(0,5,0,tabH-5).with(R.stroke(2,Color.grey).draw);
+                  else Shape.line(0,tabH/6*0.7+5,0,tabH-5).with(R.stroke(1,Color.grey).draw);
+                });
+              }
+              for(var i=0;i<3;i++){
+                R.translated(tabW*(i+0.5),tabH/18,()=>{
+                  numT((i+6).toString(),"月",35,0,R.fill(Color.black).draw);
+                });
+              }
+            });
+          });
+          R.darkened(0.5-0.5*leftBtn.enabled,()=>{
+            leftBtn.with([
+                R.fill(Theme.transBtn).shadow(leftBtn.hover*5+5).draw,
+                R.stroke(2,Theme.transFrm).draw
+            ]);
+          });
+          R.darkened(0.5-0.5*rightBtn.enabled,()=>{
+            rightBtn.with([
+                R.fill(Theme.transBtn).shadow(rightBtn.hover*5+5).draw,
+                R.stroke(2,Theme.transFrm).draw
+            ]);
+          });
+          R.translated(Task.reiD()*tabW/4,0,()=>{
+            Task.regd.forEach((i)=>{
+              drawTask(i,true);
+            });
+          });
+        });
+        Shape.rect(tabW,tabH).translate(tabX,tabY).with(R.stroke(2,Theme.frame).draw);
+      });
+      R.clipped(itemX,itemY,Po.size.x*0.3-10,Po.size.y*0.6-10,()=>{
+        R.translated(Po.size.x*0.3*(1-anim()),0,()=>{
+          R.translated(Task.itmD()*(Po.size.x*0.3-10),0,()=>{
+            Task.item.forEach((i)=>{
+              R.clipped(itemX+(i.e-itX()-Task.itmD())*(Po.size.x*0.3-10),itemY,Po.size.x*0.3-10,Po.size.y*0.6-10,()=>{
+                drawTask(i);
+              });
+            });
+          });
+          var posi = Shape.rect(Po.size.x*0.3-90,30).translate(Po.size.x*0.7+50,Po.size.y*0.8-35);
+          R.darkened(0.0,()=>{
+            leftItm.with(R.fill(Theme.jobs[itX.at()]).shadow(5).draw);
+            posi.with(R.fill(Theme.jobs[itX.at()]).shadow(5).draw);
+            rightItm.with(R.fill(Theme.jobs[itX.at()]).shadow(5).draw);
+          });
+          R.darkened(0.3,()=>{
+            leftItm.with(R.stroke(2,Theme.jobs[itX.at()]).draw);
+            posi.with(R.stroke(2,Theme.jobs[itX.at()]).draw);
+            rightItm.with(R.stroke(2,Theme.jobs[itX.at()]).draw);
+          });
+          R.transformed(leftItm,()=>{
+            Shape.polygon([20,-10,10,0,20,10]).with(R.stroke(3,Color.black).draw);
+          });
+          R.transformed(posi,()=>{
+            Shape.text(jobName[itX.at()]).center.scale(18,18).translate(Po.size.x*0.15-45,15).with(R.fill(Color.black).draw);
+          });
+          R.transformed(rightItm,()=>{
+            Shape.polygon([-20,-10,-10,0,-20,10]).with(R.stroke(3,Color.black).draw);
+          });
+        });
+      });
+      if(disp)R.translated(0,Po.size.y*0.9,()=>{
+        var name = Schedule.getJobInitial(disp.e)+"r";
+        var img = Picture.get(name);
+        R.translated(20,-30,()=>{
+          Shape.image(name).scale(35/img.width,70/img.height).with(R.fill(Theme.jobs[disp.e]).draw);
+        })
+        disp.s.affined(()=>{
+          R.translated(70,-25,()=>{
+            drawTask(disp);
+          });
+        });
+        var task = disp.task;
+        var exp = task.explain;
+        Shape.text(exp).left.scale(25,25).translate(70,30).with(R.fill(Theme.text).draw);
+
+        var sz = 30;
+        sz = Math.min(sz,(disp.w*tabW/4-20)/Shape.text(disp.t).size.x);
+        var iw = Shape.text(disp.t).size.x*sz+185;
+
+        Shape.text("開始に必要").right.scale(24,24).translate(iw,-20).with([
+            R.stroke(0.1,Color.white).shadow(4).draw,
+            R.fill(Theme.alert).draw
+        ]);
+        Shape.text("完成に必要").right.scale(24,24).translate(iw,4).with([
+            R.stroke(0.1,Color.white).shadow(4).draw,
+            R.fill(Theme.alert).draw
+        ]);
+        R.lightened(0.1,()=>{
+          R.translated(0,-20,()=>{
+            var depName = disp.depend;
+            var dpos = iw+15;
+            depName.forEach((t)=>{
+              Shape.text(t.t).left.scale(20,20).translate(dpos,0).with([
+                  R.stroke(0.3,Color.black).shadow(4).draw,
+                  R.fill(Theme.jobs[t.e]).draw
+              ]);
+              dpos += Shape.text(t.t).size.x*20+10;
+            });
+          });
+          R.translated(0,4,()=>{
+            var depName = disp.halfDepend;
+            var dpos = iw+15;
+            depName.forEach((t)=>{
+              Shape.text(t.t).left.scale(20,20).translate(dpos,0).with([
+                  R.stroke(0.3,Color.black).shadow(4).draw,
+                  R.fill(Theme.jobs[t.e]).draw
+              ]);
+              dpos += Shape.text(t.t).size.x*20+10;
+            });
+          });
+        });
+
+      });
+      if(Task.carry)drawTask(Task.carry);
+    };
+    return scene;
+  });
+
+  return [Meeting,SDT,Plan];
+
+})());

@@ -1,0 +1,326 @@
+Scenes.add((()=>{
+
+var Theme = Scenes.theme;
+var jobName = Scenes.jobName;
+var jobDesc = Scenes.jobDesc;
+
+var Title = Poyo.scene("Title",(Po)=>{
+  var scene = {};
+  var next = Shape.rect(Po.size.x*0.7,Po.size.y/10).with(Shape.translate(-Po.size.x*0.35,-Po.size.y/20)).translate(0,+30).with(Po.button(()=>{
+    Po.transit("Story");
+    Music.once("decide");
+  }));
+  next.translate(Po.size.x/2,Po.size.y*0.8);
+  var flag = false;
+  var shin = Po.ease(0).exp.in(10);
+  var choku = Po.ease(0).exp.in(10);
+  var doudesuka = Po.ease(0).exp.in(40);
+  scene.step = ()=>{
+    if(Po.local == 0){
+      shin.set(1);
+    }
+    if(Po.local == 10){
+      choku.set(1);
+    }
+    if(Po.local == 40){
+      doudesuka.set(1);
+    }
+    if (Po.local == 10) {
+      Music.once("taiko1");
+    }
+    if (Po.local == 20) {
+      Music.once("taiko1");
+    }
+    if (Po.local == 90) {
+      Music.once("taiko2");
+    }
+    next.onCollide(Po.mouse.x, Po.mouse.y, (x,y) => {
+      if (flag == false) {
+        flag = true;
+        Music.once("over");
+      }
+    }, (x,y) => {
+      flag = false;
+    });
+  };
+  var slide = Po.ease(0).cubic.in(20);
+  Music.stop("sdt");
+  Music.loop("title");
+  scene.end = (t,kill)=>{
+    if(t==0)slide.set(-2*Po.size.x);
+    if(slide.done)kill();
+  };
+  scene.draw = (R,acc)=>{
+    Shape.image("title-bg").with(R.draw);
+    Shape.rect(Po.size.x,Po.size.y).with(R.fill(Theme.bg.alpha(0.6)).draw);
+    R.translated(slide(),0,()=>{
+      R.translated(2*Po.size.x,0,()=>{
+        acc();
+      });
+      R.translated(Po.size.x/2,Po.size.y/2,()=>{
+        Shape.text("進").center.scale(240,240).scale(shin(),shin()).translate(-98,-90+20).with(R.fill(Theme.text).shadow(10).draw);
+        Shape.text("捗").center.scale(240,240).scale(choku(),choku()).translate(98,-90+20).with(R.fill(Theme.text).shadow(10).draw);
+        Shape.text("どうですか？").center.scale(80,80).scale(doudesuka(),doudesuka()).translate(0,50+20).with(R.fill(Theme.text).shadow(10).draw);
+        Shape.text("プロジェクトマネジメントシミュレーションゲーム").up.scale(30,30).translate(0,-Po.size.y/2+5-40+doudesuka()*40).with(R.fill(Theme.text).shadow(10).draw);
+      });
+      next.with(R.fill(Theme.text.alpha(0.2)).shadow(next.hover*5).draw);
+      R.transformed(next,()=>{
+        Shape.text("Click to make progress").center.scale(30,30).with(R.fill(Theme.text).shadow(next.hover*5+10).draw);
+      });
+    });
+  };
+  return scene;
+});
+
+var Story = Poyo.scene("Story",(Po)=>{
+  var scene = {};
+  var e = [];
+  var plate = Po.ease(-60).cubic.in(20);
+  scene.spawn = ()=>{};
+  scene.step = ()=>{
+    if(Po.local == 0){
+      plate.set(0);
+    }
+    if(Po.local == 40){
+      var kon = ()=>{
+        //480, 360
+        Music.once("paper");
+        var name = "slide" + e.length;
+        var img = Picture.get(name);
+        var pict = Shape.image(name).scale(480/img.width, 360/img.height).translate(-240, -180).with(Po.button(()=>{
+          if(e.length==3)Po.transit("Member");
+          else kon();
+        }));
+        var shap = Shape.rect(480,360).translate(-240,-180);
+        var a = (Math.random()*10-5)*Math.PI/180;
+        pict.rotate(a);
+        shap.rotate(a);
+        pict.translate(Po.size.x/2,Po.size.y*0.53);
+        shap.translate(Po.size.x/2,Po.size.y*0.53);
+        var i = Po.ease(0).quad.out(20).set(1);
+        e.push({p:pict,i:i,s:shap});
+      };
+      kon();
+    }
+  };
+  var slide = Po.ease(0).cubic.inOut(40);
+  scene.end = (t,kill)=>{
+    if(t==0)slide.set(-2*Po.size.x);
+    if(slide.done)kill();
+    Music.stop("title");
+  };
+  scene.draw = (R,acc)=>{
+    Shape.rect(Po.size.x,Po.size.y).with(R.fill(Theme.bg).draw);
+    R.translated(slide(),0,()=>{
+      R.translated(2*Po.size.x,0,()=>{
+        acc();
+      });
+      R.translated(0,plate(),()=>{
+        Shape.text("ストーリィ").leftUp.scale(40,40).translate(15,15).with(R.fill(Theme.text).shadow(5).draw);
+      });
+      e.forEach((v)=>{
+        var s = v.s;
+        var p = v.p;
+        var i = v.i();
+        R.withAlpha(i,()=>{
+          R.translated(0,(i-1)*100,()=>{
+            s.with(R.fill(Color.white.alpha(i)).shadow(10).draw);
+            p.with(R.fill(Color.white.alpha(i)).draw);
+            s.with(R.stroke(2,Theme.frame.alpha(i)).draw);
+          });
+        });
+      });
+    });
+  };
+  return scene;
+});
+
+var Member = Poyo.scene("Member",(Po)=>{
+  var scene = {};
+  var plate = Po.ease(-60).cubic.in(20);
+  var vals = [0,0,0,0];
+  var ani = [Po.ease(0).inf(0.25),Po.ease(0).inf(0.25),Po.ease(0).inf(0.25),Po.ease(0).inf(0.25)];
+  var buttons = [];
+  var nums = 0;
+  var poyo = [[],[],[],[]];
+  var poyD = [];
+  var addStrE = Po.ease(1).linear.in(10);
+  function adjust(){
+    var cnt = 0;
+    poyo.forEach((v,i)=>{
+      while(v.length > vals[i]){
+        poyD.push({s:v.pop(),i:i});
+      }
+      while(v.length < vals[i]){
+        v.push(Po.ease(5.5).cubic.inOut(20));
+      }
+      v.forEach((e)=>{
+        e.set(cnt);
+        cnt++;
+      });
+    });
+    poyD.forEach((e)=>{
+      e.s.set(-1.5);
+    });
+    if(nums==0)addStrE.set(1);
+    else addStrE.set(0);
+  }
+  for(var i=0;i<4;i++){
+    buttons.push(((j)=>{
+      var btn = Shape.rect(Po.size.x/2,Po.size.y/8).with(Shape.translate(-Po.size.x/4,-Po.size.y/16)).with(Po.button(()=>{
+        if(Po.mouse.button==0 && nums<5){
+          vals[j]++,nums++;
+          adjust();
+          Music.once("decide");
+          Music.once("move");
+        }
+        if(Po.mouse.button==2 && vals[j]>0 && nums>0){
+          vals[j]--,nums--;
+          adjust();
+          Music.once("cancel");
+          Music.once("move");
+        }
+      }));
+      btn.translate(0,j*Po.size.y/7);
+      btn.translate(200,120);
+      var pro = Shape.roundrect(Po.size.x/3,Po.size.y*0.5,20);
+      pro.translate(40,-Po.size.y*0.21);
+      var tri = Shape.polygon([40,-20,50,-20,50,20,40,20,10,0]);
+      return {s:btn,i:j,p:pro,t:tri};
+    })(i));
+  }
+  var next = Shape.roundrect(150,60,10).with(Shape.translate(-75,-30)).with(Po.button(()=>{
+    Music.once("decide");
+    Po.dialog("この"+nums+"人でいいですか？",["いいえ","はい"],(i,close)=>{
+      close();
+      if(i==1){
+        var mList = [];
+        for (var j = 0; j < vals[0]; j++) 
+          mList.push(JOB_PROGRAMMER);
+        for (var j = 0; j < vals[1]; j++) 
+          mList.push(JOB_DESIGNER);
+        for (var j = 0; j < vals[2]; j++) 
+          mList.push(JOB_MUSIC_CREATOR);
+        for (var j = 0; j < vals[3]; j++) 
+          mList.push(JOB_LEVEL_DESIGNER);
+        Schedule.initialize(mList);
+        Po.transit("Meeting",true);
+      }
+    });
+  }));
+  next.translate(Po.size.x-125,50);
+  scene.spawn = ()=>{};
+  var flags = [false, false, false, false];
+  scene.step = ()=>{
+    if(Po.local == 0){
+      plate.set(0);
+    }
+    buttons.forEach((v, i)=>{
+      v.s.onCollide(Po.mouse.x,Po.mouse.y,()=>{
+        ani[v.i].to(1);
+        if (flags[i] == false) {
+          Music.once("over");
+          flags[i] = true;
+        }
+      },()=>{
+        ani[v.i].to(0);
+        flags[i] = false;
+      });
+    });
+    for(var i=0;i<poyD.length;i++){
+      if(poyD[i].s.done){
+        poyD.splice(i,1);
+        i--;
+      }
+    }
+  };
+  var slide = Po.ease(0).cubic.inOut(40);
+  scene.end = (t,kill)=>{
+    if(t==0)slide.set(-2*Po.size.x);
+    if(slide.done)kill();
+  };
+  scene.draw = (R)=>{
+    Shape.rect(Po.size.x,Po.size.y).with(R.fill(Theme.bg).draw);
+    R.translated(0,plate(),()=>{
+      Shape.text("チームメンバー選択").leftUp.scale(40,40).translate(15,15).with(R.fill(Theme.text).shadow(5).draw);
+    });
+    poyo.forEach((ps,i)=>{
+      ps.forEach((e)=>{
+        var name = Schedule.getJobInitial(i)+"f";
+        var img = Picture.get(name);
+        Shape.image(name).scale(50/img.width,100/img.height).translate(55+e()*120,365).with(R.fill(Theme.jobs[i]).draw);
+      });
+    });
+    poyD.forEach((e)=>{
+      var name = Schedule.getJobInitial(e.i)+"f";
+      var img = Picture.get(name);
+      Shape.image(name).scale(50/img.width,100/img.height).translate(55+e.s()*120,365).with(R.fill(Theme.jobs[e.i]).draw);
+    });
+
+    next.with([
+      R.fill(Theme.button).shadow(next.hover*3+5).draw,
+      R.stroke(2,Theme.frame).draw
+    ]);
+    R.transformed(next,()=>{
+      Shape.text("決定").center.scale(40,40).with(R.fill(Theme.text).draw);
+    });
+    R.translated(Po.size.x/2,Po.size.y*0.87,()=>{
+      Shape.text("メンバーを5人まで追加してください").center.scale(45,45).with([
+        R.fill(Theme.text.alpha(addStrE()*(0.1+0.2*(1+Math.sin(Po.time*4*Math.PI/180))/2))).draw
+      ]);
+    });
+    buttons.forEach((v)=>{
+      var s = v.s;
+      var i = v.i;
+      s.with([
+        R.fill(Theme.jobs[i].alpha(0.3)).draw,
+        R.stroke(3,Theme.jobs[i].alpha(ani[i]())).shadow(5).draw
+      ]);
+      R.transformed(s,()=>{
+        R.translated(-20,0,()=>{
+          R.darkened(0.5,()=>{
+            Shape.text(jobName[i]).center.scale(40,40).with(R.fill(Theme.jobs[i]).draw);
+          });
+        });
+        R.translated(120,0,()=>{
+          R.darkened(0.7,()=>{
+            Shape.text("x"+vals[i]).center.scale(40,40).with(R.fill(Theme.jobs[i]).draw);
+          });
+        });
+        R.translated(Po.size.x/4,0,()=>{
+          if(ani[i]()>0.1)R.scaled(ani[i](),ani[i](),()=>{
+            R.lightened(0.7,()=>{
+              v.t.with(R.fill(Theme.jobs[i]).shadow(2).draw);
+              v.p.with(R.fill(Theme.jobs[i]).shadow(2).draw);
+            });
+            R.transformed(v.p,()=>{
+              R.darkened(0.5,()=>{
+                jobDesc[i].forEach((t,j)=>{
+                  Shape.text(t).leftUp.scale(30,30).translate(10,10+j*30).with(R.fill(Theme.jobs[i]).draw);
+                });
+                Shape.text("左クリックで+1").leftUp.scale(30,30).translate(20,175).with(R.fill(Theme.jobs[i]).draw);
+                Shape.text("右クリックで-1").leftUp.scale(30,30).translate(20,205).with(R.fill(Theme.jobs[i]).draw);
+                if(nums==5){
+                  Shape.line(20,183,190,183).with(R.stroke(3,Color.black.alpha(0.5)).draw);
+                  Shape.line(20,190,190,190).with(R.stroke(3,Color.black.alpha(0.5)).draw);
+                }
+                if(nums==0 || vals[i]==0){
+                  Shape.line(20,213,190,213).with(R.stroke(3,Color.black.alpha(0.5)).draw);
+                  Shape.line(20,220,190,220).with(R.stroke(3,Color.black.alpha(0.5)).draw);
+                }
+              });
+              R.darkened(0.3,()=>{
+                Shape.line(10,160,200,160).with(R.stroke(3,Theme.jobs[i]).draw);
+              });
+            });
+          });
+        });
+      });
+    });
+  };
+  return scene;
+});
+
+return [Title,Story,Member];
+
+})());

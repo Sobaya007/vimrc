@@ -1,0 +1,35 @@
+set runtimepath^=~/.vim/bundle/neobundle.vim/
+set runtimepath+=~/_vimfiles/
+filetype off
+call neobundle#begin(expand('~/.vim/bundle/'))
+NeoBundleFetch 'Shougo/neobundle.vim
+NeoBundle 'Shougo/neocomplcache'
+NeoBundle 'Shougo/neosnippet'
+NeoBundle 'Shougo/neosnippet-snippets'
+NeoBundle 'scrooloose/nerdtree'
+NeoBundle 'scrooloose/syntastic'
+NeoBundle 'tomasr/molokai'
+NeoBundle 'open-browser.vim'
+NeoBundle 'JesseKPhillips/d.vim'
+NeoBundle 'nathanaelkane/vim-indent-guides'
+NeoBundle 'jelera/vim-javascript-syntax'
+NeoBundle 'SirVer/ultisnips'
+NeoBundle 'honza/vim-snippets'
+NeoBundle 'kiith-sa/DSnips.git'
+NeoBundle 'NLKNguyen/papercolor-theme'
+call neobundle#end()
+NeoBundleCheck
+filetype plugin indent on
+runtime! userautoload/*.vim
+"let g:indent_guides_enable_on_vim_startup = 1
+let g:UltiSnipsExpandTrigger="<tab>"
+let g:UltiSnipsJumpForwardTrigger="<c-b>"
+let g:UltiSnipsJumpBackwardTrigger="<c-z>"
+
+set t_Co=256
+
+set background=light
+colorscheme PaperColor
+
+let g:PaperColor_Light_Override = { 'background' : '#abcdef', 'cursorline' : '#dfdfff', 'matchparen' : '#d6d6d6' , 'comment' : '#8e908c' }
+let g:airline_theme='PaperColor'

@@ -1,0 +1,20 @@
+set runtimepath^=~/.vim/bundle/neobundle.vim/
+set runtimepath+=~/_vimfiles/
+runtime! userautoload/*.vim
+filetype off
+call neobundle#begin(expand('~/.vim/bundle/'))
+NeoBundleFetch 'Shougo/neobundle.vim
+NeoBundle 'Shougo/neocomplcache'
+NeoBundle 'Shougo/neosnippet'
+NeoBundle 'Shougo/neosnippet-snippets'
+NeoBundle 'scrooloose/nerdtree'
+NeoBundle 'scrooloose/syntastic'
+NeoBundle 'tomasr/molokai'
+NeoBundle 'open-browser.vim'
+NeoBundle 'JesseKPhillips/d.vim'
+NeoBundle 'nathanaelkane/vim-indent-guides'
+NeoBundle 'jelera/vim-javascript-syntax'
+call neobundle#end()
+NeoBundleCheck
+filetype plugin indent on
+//let g:indent_guides_enable_on_vim_startup = 1

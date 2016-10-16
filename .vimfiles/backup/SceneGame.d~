@@ -1,0 +1,274 @@
+module scene.SceneGame;
+
+import scene.imports;
+import core.thread;
+import sbylib;
+import player;
+import enemy;
+import model;
+import collision;
+import Crystal;
+import WoodFrame;
+static import std.file;
+
+class SceneGame : SceneBase {
+  mixin singleton!();
+
+  private this() {
+    writeln("init SceneGame"); //
+
+    alias window = SbyWorld.currentWindow;
+
+    //フォント
+    Font font = new Font(SbyWorld.rootPath ~ "Resource/meiryo.ttc", Font.LoadType.AntiAlias, 36);
+    //カメラ
+    SbyWorld.currentCamera = new PerspectiveCamera(1, PI_4, 1, 30);
+    with (SbyWorld.currentCamera) {
+      pos = vec3(0,1,3) * 3;
+      target = vec3(0, 0, 0);
+      vecY = vec3(0,1, 0);
+    }
+    //FPS
+    auto fpsCounter = new FpsCounter!(100);
+    //ラベル
+    Label compassLabel = new Label(font, "Compass", 20);
+    Label fpsLabel = new Label(font, "FPS=", 20);
+    //コンパス
+    auto compassShader = ShaderStore.getShader("Compass");
+    auto compass = new TextureObject(0xff, 0xff, ImageType.RGBA); 
+    //モデル
+    string[] resourceNameList = std.file.readText("Resource/ResourceNameList.txt").split("\n").map!(a => a.chomp).array;
+    Model oobeya = new Model("Resource/model/" ~ resourceNameList[0], mat4.translate(vec3(0,11,0))*mat4.scale(vec3(0.05,0.05,0.05)), ShaderStore.getShader("Ground"));
+    Crystal crys = new Crystal("Resource/model/" ~ resourceNameList[1], mat4.translate(vec3(8,0,5)));
+    Crystal wallCrys = new Crystal("Resource/model/" ~ resourceNameList[2], mat4.translate(vec3(10,0,8)));
+    Crystal crysmid = new Crystal("Resource/model/" ~ resourceNameList[3], mat4.translate(vec3(-8,0,6)));
+    WoodFrame waku = new WoodFrame("Resource/model/" ~ resourceNameList[4], mat4.translate(vec3(0,0,10))*mat4.rotAxisAngle(vec3(0,1,0), PI/2) * mat4.scale(vec3(1,1,1)));
+    //衝突判定
+    Octree octree = new Octree(oobeya.getMin-10.0, oobeya.getMax+10.0, 7);
+    oobeya.addCollisionObject(octree, Model.CollisionType.Map);
+    waku.addCollisionObject(octree, Model.CollisionType.Capsule, (info){});
+    //プレイヤー
+    auto world = new PhysicsWorld3D;
+    Player player = new Player(octree, world);
+    PlayerAnnouncer.init(player);
+    //敵リスト(削除してどうぞ)
+    GameAI aiList[];
+    auto box = new Cubic810(octree);
+    {
+      vec3 scale = vec3(1,1,1) * 0.5f;
+      box *= scale;
+      box += vec3(0,1,3.0) * 0.125;
+      box.pos(vec3(0,10,0));
+      // 	    box.pos(vec3(0,2.0,0));
+    }
+    auto peedy = new Peedy;
+    auto bat = new Batman01(octree);
+    {
+      bat.pos(vec3(0,2.0,1.0));
+    }
+    auto te = new TestEnemy();
+    {
+      te.pos(vec3(0,2.0,3.0));
+    }
+    auto crys01 = new TkgwCrystal;
+    // 	aiList ~= box;
+    // 	aiList ~= peedy;
+    aiList ~= te;
+    aiList ~= bat;
+    waku.addToPhysicsWorld(world);
+    auto b = world.createBox(RigidBody3D.Type.Static, vec3(100, 1, 100));
+    b.shape.Position -= vec3(0, 2, 0);
+    world.add(b);
+    //描画
+    auto drawManager = DrawManager.getInstance;
+    //drawManager.add(te);
+    drawManager.add({
+        clearColor(vec4(0.5, 0.5, 0.5, 1.0));
+        clearStencil(0);
+
+<<<<<<< HEAD
+        clear(ClearMode.Color, ClearMode.Depth, ClearMode.Stencil);
+        return true;
+        }, 0);
+    drawManager.add(waku);
+    drawManager.add(oobeya);
+    drawManager.add({
+        //captureScreen(SbyWorld.backBuffer, 0, 0, window.width, window.height);
+        return true;
+        });
+    drawManager.add(player);
+    drawManager.add({
+        //compass.write({
+        //    clearColor(vec4(0,0,0,0));
+        //    clear(ClearMode.Color);
+        //    void delegate(CustomObject) uniformSetting = (CustomObject custom) {
+        //        custom.setUniformMatrix!(4, "mView")(SbyWorld.currentCamera.getViewMatrix.array);
+        //    };
+        //    drawWithShader(compassShader, uniformSetting);
+        //});
+        //drawImage(window_width-50, 50, 100, 100, compass);
+        //compassLabel.draw(window_width-100, 100, black);
+        return true;
+        });
+    drawManager.add({
+        fpsLabel.draw(3,SbyWorld.currentWindow.height-30,black);
+        //fpsCounter.getFPS.to!wstring.drawText(63,window_height-30,20);
+        return true;
+        });
+
+    //処理
+    auto entityManager = EntityManager.getInstance;
+    entityManager.add(te);
+    entityManager.add(PlayerAnnouncer.getInstance, 49);
+    entityManager.add(world);
+    entityManager.add({
+        checkTime!({
+            // 衝突判定
+            octree.testAllCollisions();
+            //octree.draw(); // debug用の描画
+            }, "testAllCollisions");
+        return true;
+        });
+    entityManager.add({
+        fpsCounter.update();
+        window.title = "FPS = [" ~ fpsCounter.getFPS.to!string ~ "]";
+        return true;
+        });
+  }
+
+  override void init() {
+
+  }
+
+  override Scene update() {
+
+=======
+    //フォント
+    Font font = new Font(SbyWorld.rootPath ~ "Resource/meiryo.ttc", Font.LoadType.AntiAlias, 36);
+    //カメラ
+    SbyWorld.currentCamera = new PerspectiveCamera(1, PI_4, 1, 30);
+    with (SbyWorld.currentCamera) {
+      pos = vec3(0,1,3) * 3;
+      target = vec3(0, 0, 0);
+      vecY = vec3(0,1, 0);
+    }
+    //FPS
+    auto fpsCounter = new FpsCounter!(100);
+    //ラベル
+    Label compassLabel = new Label(font, "Compass", 20);
+    Label fpsLabel = new Label(font, "FPS=", 20);
+    //コンパス
+    auto compassShader = ShaderStore.getShader("Compass");
+    auto compass = new TextureObject(0xff, 0xff, ImageType.RGBA); 
+    //モデル
+    string[] resourceNameList = std.file.readText("Resource/ResourceNameList.txt").split("\n").map!(a => a.chomp).array;
+    Model oobeya = new Model("Resource/model/" ~ resourceNameList[0], mat4.translate(vec3(0,11,0))*mat4.scale(vec3(0.05,0.05,0.05)), ShaderStore.getShader("Ground"));
+    Crystal crys = new Crystal("Resource/model/" ~ resourceNameList[1], mat4.translate(vec3(8,0,5)));
+    Crystal wallCrys = new Crystal("Resource/model/" ~ resourceNameList[2], mat4.translate(vec3(10,0,8)));
+    Crystal crysmid = new Crystal("Resource/model/" ~ resourceNameList[3], mat4.translate(vec3(-8,3,6)));
+    WoodFrame waku = new WoodFrame("Resource/model/" ~ resourceNameList[4], mat4.translate(vec3(0,0,10))*mat4.rotAxisAngle(vec3(0,1,0), PI/2) * mat4.scale(vec3(1,5,1)));
+    //衝突判定
+    Octree octree = new Octree(oobeya.getMin-10.0, oobeya.getMax+10.0, 7);
+    oobeya.addCollisionObject(octree, Model.CollisionType.Map);
+    waku.addCollisionObject(octree, Model.CollisionType.Capsule, (info){});
+    //プレイヤー
+    Player player = new Player(SbyWorld.backBuffer);
+    player.addCollisionObject(octree,player);
+    PlayerAnnouncer.init(player);
+    //敵リスト(削除してどうぞ)
+    GameAI aiList[];
+    auto box = new Cubic810(octree);
+    {
+      vec3 scale = vec3(1,1,1) * 0.5f;
+      box *= scale;
+      box += vec3(0,1,3.0) * 0.125;
+      box.pos(vec3(0,10,0));
+      // 	    box.pos(vec3(0,2.0,0));
+    }
+    auto peedy = new Peedy;
+    auto bat = new Batman01(octree);
+    {
+      bat.pos(vec3(0,2.0,1.0));
+    }
+    auto te = new TestEnemy();
+    {
+      te.pos(vec3(0,2.0,3.0));
+    }
+    auto crys01 = new TkgwCrystal;
+    // 	aiList ~= box;
+    // 	aiList ~= peedy;
+    aiList ~= te;
+    aiList ~= bat;
+    //描画
+    auto drawManager = DrawManager.getInstance;
+    drawManager.add(crysmid, 53);
+    drawManager.add({
+        clearColor(vec4(0.5, 0.5, 0.5, 1.0));
+        clearStencil(0);
+
+        clear(ClearMode.Color, ClearMode.Depth, ClearMode.Stencil);
+        return true;
+        }, 0);
+    drawManager.add(waku);
+    drawManager.add(oobeya);
+    drawManager.add({
+        captureScreen(SbyWorld.backBuffer, 0, 0, window.width, window.height);
+        return true;
+        });
+    drawManager.add(player);
+    drawManager.add({
+        compass.write({
+            clearColor(vec4(0,0,0,0));
+            clear(ClearMode.Color);
+            void delegate(CustomObject) uniformSetting = (CustomObject custom) {
+            custom.setUniformMatrix!(4, "mView")(SbyWorld.currentCamera.getViewMatrix.array);
+            };
+            drawWithShader(compassShader, uniformSetting);
+            });
+        drawImage(window.width-50, 50, 100, 100, compass);
+        compassLabel.draw(window.width-100, 100, black);
+        return true;
+        });
+    drawManager.add({
+        fpsLabel.draw(3,SbyWorld.currentWindow.height-30,black);
+        //fpsCounter.getFPS.to!wstring.drawText(63,window_height-30,20);
+        return true;
+        });
+
+    //処理
+    auto entityManager = EntityManager.getInstance;
+    entityManager.add(te);
+    entityManager.add(PlayerAnnouncer.getInstance, 49);
+    entityManager.add({
+        checkTime!({
+            // 衝突判定
+            octree.testAllCollisions();
+            //octree.draw(); // debug用の描画
+            }, "testAllCollisions");
+        return true;
+        });
+    entityManager.add({
+        fpsCounter.update();
+        window.title = "FPS = [" ~ fpsCounter.getFPS.to!string ~ "]";
+        return true;
+        });
+  }
+
+  override void init() {
+
+  }
+
+  override Scene update() {
+
+>>>>>>> crystal_fix
+    return null;
+  }
+
+}
+
+void checkTime(void delegate() func, string text)() {
+  StopWatch sw;
+  sw.start;
+  func();
+  if (sw.peek().msecs>100) writeln(text ~ " = ", sw.peek().msecs, "ms");//
+}

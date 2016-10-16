@@ -1,0 +1,39 @@
+#version 330
+uniform vec3 lightPos;
+uniform vec3 cameraPos;
+uniform sampler2D mTexture;
+uniform float glowing;
+
+in vec4 p;
+in vec3 n;
+in vec2 tc;
+in vec2 screenPos;
+in float bulge; //0,1-2
+
+out vec4 FragColor;
+
+vec3 sampleTexture(vec3 v){
+  vec2 rayX = v.xz;
+  vec2 p = vec2(atan(rayX.y,rayX.x)/3.1415926535,-asin(v.y)/3.1415926535*2.0);
+  return texture(mTexture,(p+1.0)/2.0).xyz;
+}
+// yawaraka orange
+
+void main() {
+  vec3 nrm = normalize(n);
+  vec3 pos = p.xyz / p.w;
+  vec3 camV = normalize(pos-cameraPos);
+  vec3 diffuse = texture(mTexture, tc).rgb;
+  vec3 ligV = normalize(lightPos-pos);
+
+  vec3 col = vec3(1,0.5,0);
+  col += max(0.,dot(-camV,nrm))/4.;
+  col *= max(0.2,1.-pow(1.-abs(dot(-camV,nrm)),3.));
+  col += max(0.,dot(ligV,nrm)*0.5+0.5)/6.;
+  col += max(0.,dot(ligV,nrm))/6.;
+
+  FragColor.rgb = col;
+  FragColor += texture(mTexture,vec2(0,0))*0.001;
+  FragColor.w = 1;
+  FragColor.rgb = n;
+}

@@ -1,0 +1,383 @@
+module sbylib.physics3d.Narrow;
+
+import sbylib;
+import sbylib.physics3d.Shape;
+
+private vec3 support(Shape a, Shape b, vec3 d) @nogc {
+
+  d = d.normalize;
+  vec3 p1 = a.support(d);
+  vec3 p2 = b.support(-d);
+  return p1 - p2;
+}
+
+
+private vec3 getVertical(vec3 v) @nogc {
+  if (v.x == 0 && v.y == 0) {
+    if (v.z == 0) assert(false);
+    return vec3(1,0,0);
+  }
+  return v.cross(vec3(0,0,1));
+}
+
+//GJKアルゴリズムによる凸形状同士の衝突判定
+bool GJK(Shape a, Shape b, out vec3[4] simplex) @nogc {
+  auto d = vec3(1,1, 1); //最初適当にdを決める
+  simplex[0] = support(a, b, d); //一つ目
+
+  d = -d; //反対方向
+  auto newPos = support(a,b,d);
+  //d方向にとったサポート写像がd方向になかったら原点を含むことは絶対にない
+  if (dot(newPos, d) <= 0) return false;
+  simplex[1] = newPos; //二つ目
+
+  d = getVertical(simplex[1] - simplex[0]); //直線に垂直になるように適当に
+  newPos = support(a,b,d);
+  if (dot(newPos, d) <= 0) return false;
+  simplex[2] = newPos; //三つめ
+
+  d = cross(simplex[2] - simplex[1], simplex[1] - simplex[0]); //面に垂直になるように
+  if (dot(d, simplex[0]) > 0) d = -d; //dは面から原点に向く方向
+
+  foreach (i; 0..100) {
+    newPos = support(a, b, d);
+
+    if (dot(newPos, d) <= 0) return false;
+    //simplex ~= newPos; //４つ目以降
+    simplex[3] = newPos;
+
+    bool containsOrigin() @nogc{
+      //原点を含むか判定
+      //ついでにdの向きも変えちゃう
+
+      auto A = newPos;
+      auto AO = -newPos; //newPosから原点に向かうベクトル
+
+      //三角錐の頂点をA,B,C,Dとする
+      //dの取り方からわかるように、原点が古い３点でできる面(BCD)側の面領域にないことは保証されている
+      auto B = simplex[2];
+      auto C = simplex[1];
+      auto D = simplex[0];
+
+      auto AB = B - A;
+      auto AC = C - A;
+      auto AD = D - A;
+
+      d = cross(AB, AC); //ABCに垂直な向き
+
+      if (dot(d, D) > 0) d = -d; //dとDから遠ざかる向き
+
+      //もしABCの法線(Dから遠ざかる方向)とAOが同じ向きを向いていたら、Dが一番遠い頂点
+      if (dot(d, AO) > 0) { 
+        simplex[0] = A;
+        simplex[1] = B;
+        simplex[2] = C;
+        return false;
+      }
+
+      d = cross(AB, AD); //ABDに垂直な向き
+
+      if (dot(d, C) > 0) d = -d; //dはCから遠ざかる向き
+
+      //もしABDの法線とAOがry
+      if (dot(d, AO) >= 0) {
+        simplex[0] = A;
+        simplex[1] = B;
+        simplex[2] = D;
+        return false;
+      }
+
+      d = cross(AC, AD); //ACDに垂直な向き
+
+      if (dot(d, B) > 0) d = -d; //dはBから遠ざかる向き
+
+      //ry
+      if (dot(d, AO) > 0) {
+        simplex[0] = A;
+        simplex[1] = C;
+        simplex[2] = D;
+        return false;
+      }
+
+      return true;
+    }
+
+    if (containsOrigin) return true;
+  }
+  return false;
+}
+
+alias Convex = LimitedArray!(vec3, 2000);
+
+
+bool EPA(Shape a, Shape b, out vec3 pushVec, out vec3[] collisionPoints)  
+{
+
+  vec3[4] points;
+  if (!GJK(a, b, points)) return false;
+  foreach (p; points) {
+    assert(p.x.abs != float.nan && p.y.abs != float.nan && p.z.abs != float.nan);
+  }
+
+  //auto convex = [ [points[0], points[1], points[2]], [points[1], points[2], points[3]], [points[2], points[3], points[0]],
+  //[points[3], points[0], points[1]] ];
+  //vec3[] convex = [
+  //    points[0], points[1], points[2],
+  //    points[1], points[2], points[3],
+  //    points[2], points[3], points[0],
+  //    points[3], points[0], points[1]
+  //];
+  static Convex convex;
+  if (convex is null) convex = new Convex;
+  convex.clear;
+  convex.add(points[0]); convex.add(points[1]); convex.add(points[2]);
+  convex.add(points[1]); convex.add(points[2]); convex.add(points[3]);
+  convex.add(points[2]); convex.add(points[3]); convex.add(points[0]);
+  convex.add(points[3]); convex.add(points[0]); convex.add(points[1]);
+
+  vec3 lastNormal;
+  vec3 lastPrev;
+  auto len = 114; //適当
+  foreach (i; 0..len) {
+    auto last = update(convex, lastNormal, a, b);
+    if (last.lengthSq == 0) return false;
+    if ((last - lastPrev).lengthSq < 1e-2) break; //収束したら終わり
+    lastPrev = last;
+  }
+  lastNormal = -lastNormal.normalize;
+  pushVec = -dot(lastPrev, lastNormal) * lastNormal;
+
+
+  //次に衝突点を取得する
+
+  //面をお互いにクリップし合って適当に何点か取ってきて答え
+  //クリッピングはSutherland-Hodgeman Clipping Algorithmで
+
+  detectCollisionPointAlter(lastNormal, a, b, collisionPoints);
+  return true;
+}
+
+private auto update(ref Convex convex, ref vec3 lastNormal, Shape a, Shape b) {
+
+  uint idx = -1;
+
+  //再接近面法線方向のサポート頂点
+  auto n = nearestNormal(convex, idx, lastNormal);
+  if (n.lengthSq == 0) return vec3(0);
+  auto p = support(a, b, n);
+
+  //ここからが2Dではなかった処理
+  //pによって消えるべき面を探す/そしてconvexから消す
+  static Convex newConvex;
+  if (newConvex is null) newConvex = new Convex;
+  newConvex.clear;
+  static LimitedArray!(vec3, 100) edges;
+  if (edges is null) edges = new LimitedArray!(vec3, 100);
+  edges.clear;
+  foreach (i; 0..convex.length/3) {
+    auto normal = cross(convex[i*3+2] - convex[i*3+1], convex[i*3+1] - convex[i*3]);
+    if (dot(normal, convex[i*3]) < 0) normal = -normal;
+
+    if (dot(normal, p - convex[i*3]) > 0) { //2次元の場合、ここに引っかかる辺は最接近辺しかないが、3次元の場合複数あり得る
+      //pによって消える場合。
+      edges .add( convex[i*3+0]); edges .add( convex[i*3+1]);
+      edges .add( convex[i*3+1]); edges .add( convex[i*3+2]);
+      edges .add( convex[i*3+2]); edges .add( convex[i*3+0]);
+    } else {
+      //pの影響を受けない場合。
+      newConvex.add(convex[i*3]);
+      newConvex.add(convex[i*3+1]);
+      newConvex.add(convex[i*3+2]);
+    }
+  }
+  convex.clear();
+  foreach (c; newConvex) convex.add(c);
+  //convex = newConvex;
+
+  //面を貼り直す
+  //facesを構成する辺を全列挙して、ダブってるやつを消す
+  //残った辺+pで面を組む
+  foreach (i; 0..edges.length/2) {
+    bool flag = true;
+    foreach (j; 0..edges.length/2) {
+      if (i == j) continue;
+      if (edges[i*2] == edges[j*2] && edges[i*2+1] == edges[j*2+1]) {
+        flag = false;
+        break;
+      }
+      if (edges[i*2] == edges[j*2+1] && edges[i*2+1] == edges[j*2]) {
+        flag = false;
+        break;
+      }
+    }
+    if (flag) {
+      convex.add(edges[i*2]);
+      convex.add(edges[i*2+1]);
+      convex.add(p);
+    }
+  }
+
+  return p;
+}
+
+//面ABC上Oに最も近い点を返す
+private auto nearestOnFace(vec3 A, vec3 B, vec3 C) @nogc {
+  auto v1 = B - A;
+  auto v2 = C - A;
+  auto denom = 1 / ( dot(v1, v2)^^2 - dot(v1, v1) * dot(v2, v2) );
+  auto s = (dot(A, v2) * dot(v1, v1) - dot(A, v1) * dot(v1, v2) ) * denom;
+  auto t = (dot(A, v1) * dot(v2, v2) - dot(A, v2) * dot(v1, v2) ) * denom;
+  assert(denom != 0);
+  s = clamp(s, 0, 1);
+  t = clamp(t, 0, 1);
+  return A + v1 * t + v2 * s;
+}
+
+//convex上一番近い面の法線を返す
+auto nearestNormal(ref Convex convex, ref uint idx, ref vec3 lastNormal) @nogc {
+
+  //再接近点を探し、idxに代入
+  vec3 result = vec3(1) * float.infinity;
+  foreach (i; 0..convex.length/3) {
+    auto tmp = nearestOnFace(convex[i*3], convex[i*3+1], convex[i*3+2]);
+    if (result.lengthSq > tmp.lengthSq) {
+      result = tmp;
+      idx = cast(uint)i;
+    }
+  }
+  if (idx == -1) return vec3(0);
+  //一番近い面の法線を返す
+  result = cross(convex[idx*3+2] - convex[idx*3+1], convex[idx*3+1] - convex[idx*3+0]);
+  if (dot(result, convex[idx*3+0]) < 0) result = -result;
+  return lastNormal = result;
+}
+
+void detectCollisionPointAlter(vec3 n, Shape a, Shape b, out vec3[] collisionPoints) {
+  Face supportA = a.supportFace(-n);
+  Face supportB = b.supportFace(n);
+
+  vec3[] faceA;
+  vec3[] faceB;
+  //Aの面をBでクリップ
+  faceA = supportA.vertices.map!(a => a.worldPosition).array;
+  foreach (i; 0..supportB.vertices.length) {
+    auto pb0 = supportB.vertices[i].worldPosition;
+    auto pb1 = supportB.vertices[(i+1) % $].worldPosition;
+    auto vb = pb1 - pb0;
+
+    auto input = faceA.dup;
+    faceA = null;
+
+    bool insideB(vec3 p) @nogc {
+      return cross(vb, p - pb1).dot(supportB.normal) > 0;
+    }
+
+    //Aの線分をB平面上に投影してその線分との交差点
+    vec3 intersectB(vec3 s, vec3 e) @nogc {
+      auto va = e - s;
+      mat3 m = mat3(va.x, -vb.x, supportA.normal.x,
+          va.y, -vb.y, supportA.normal.y, 
+          va.z, -vb.z, supportA.normal.z);
+      auto t = (mat3.invert(m) * (pb1 - s)).x;
+      return s + t * va;
+    }
+
+    foreach (j; 0..input.length) {
+      auto pa0 = input[j];
+      auto pa1 = input[(j+1) % $];
+      if (insideB(pa1)) {
+        if (insideB(pa0) == false) {
+          faceA ~= intersectB(pa0, pa1);
+        }
+        faceA ~= pa1;
+      } else if (insideB(pa0)) {
+        faceA ~= intersectB(pa0, pa1);
+      }
+    }
+  }
+  //Bの面をAでクリップ
+  faceB = supportB.vertices.map!(a => a.worldPosition).array;
+  foreach (i; 0..supportA.vertices.length) {
+    auto pa0 = supportA.vertices[i].worldPosition;
+    auto pa1 = supportA.vertices[(i+1) % $].worldPosition;
+    auto va = pa1 - pa0;
+
+    auto input = faceB.dup;
+    faceB = null;
+
+    bool insideA(vec3 p) @nogc {
+      return cross(va, p - pa1).dot(supportA.normal) > 0;
+    }
+
+    //Aの線分をB平面上に投影してその線分との交差点
+    vec3 intersectA(vec3 s, vec3 e) @nogc {
+      auto vb = e - s;
+      mat3 m = mat3(vb.x, -va.x, supportB.normal.x,
+          vb.y, -va.y, supportB.normal.y, 
+          vb.z, -va.z, supportB.normal.z);
+      auto t = (mat3.invert(m) * (pa1 - s)).x;
+      return s + t * vb;
+    }
+
+    foreach (j; 0..input.length) {
+      auto pb0 = input[j];
+      auto pb1 = input[(j+1) % $];
+      if (insideA(pb1)) {
+        if (insideA(pb0) == false) {
+          faceB ~= intersectA(pb0, pb1);
+        }
+        faceB ~= pb1;
+      } else if (insideA(pb0)) {
+        faceB ~= intersectA(pb0, pb1);
+      }
+    }
+  }
+
+  //めり込み量が正の点のみ採用
+  vec3[] candidates;
+  foreach (p; faceA) {
+    if (dot(p - supportB.vertices[0].worldPosition, supportB.normal) < 0) candidates ~= p;
+  }
+  foreach (p; faceB) {
+    if (dot(p - supportA.vertices[0].worldPosition, supportA.normal) < 0) candidates ~= p;
+  }
+
+  //重複する点を除去
+  foreach (i; 0..candidates.length) {
+    bool flag = true;
+    foreach (j; i+1..candidates.length) {
+      if ((candidates[i] - candidates[j]).lengthSq < 1e-2) {
+        flag = false;
+        break;
+      }
+    }
+    if (flag) collisionPoints ~= candidates[i];
+  }
+}
+
+auto collisionSphereCapsule(PhysicalSphere sphere, PhysicalCapsule capsule, out vec3 pushVec) {
+  auto s = capsule.getStart;
+  auto e = capsule.getEnd;
+  auto vec1 = e - s;
+<<<<<<< HEAD
+  auto vec2 = sphere.Position - s;
+=======
+  auto vec2 = sphere.pos - s;
+>>>>>>> crystal_fix
+  vec1 = vec1.normalize;
+  auto t = dot(vec2, vec1);
+  vec3 nearest;
+  if (t < 0) nearest = s;
+  else if (t^^2 > vec2.lengthSq) nearest = e;
+  else nearest = s + vec1 * t;
+<<<<<<< HEAD
+  if ((nearest - sphere.Position).lengthSq > (sphere.getRadius + capsule.getRadius)^^2) return false;
+  pushVec = nearest - sphere.Position;
+=======
+  if ((nearest - sphere.pos).lengthSq > (sphere.getRadius + capsule.getRadius)^^2) return false;
+  pushVec = nearest - sphere.pos;
+>>>>>>> crystal_fix
+  auto len = pushVec.length;
+  pushVec *= (sphere.getRadius + capsule.getRadius - len) / len;
+  return true;
+}

@@ -1,0 +1,173 @@
+module sbylib.physics3d.ConvexHull;
+
+import sbylib;
+import sbylib.physics3d.Shape;
+
+class ConvexHull : Shape {
+  private:
+    Vertex[] vertices; //もとの状態での頂点座標(原点は重心位置)
+    Face[] faces;
+    uint[][] indices;
+  public:
+    this(vec3[] vertices, uint[][] indices) {
+      this.indices = indices;
+      this.vertices = vertices.map!(a => new Vertex(a)).array;
+
+      //頂点座標の原点と重心を一致させる
+      auto g = sum(vertices) / vertices.length;
+
+      foreach (ref v; vertices) v -= g;
+
+      //面を構成
+      foreach (index; indices) {
+        Face face = new Face();
+        face.vertices = reduce!((a,b) => a ~ this.vertices[b])(new Vertex[0], index);
+        face.normal = (face.vertices[1] - face.vertices[0]).cross(face.vertices[2] - face.vertices[1]).normalize;
+        faces ~= face;
+      }
+      super();
+    }
+
+
+    void setVertex(vec3[] vertex) {
+      foreach (i, v; vertices) v.position = vertex[i];
+      auto g = vertex.sum / vertex.length;
+      foreach (ref v; this.vertices) v.position -= g;
+      this.Position += g;
+      //面を構成
+      foreach (i, face; faces) {
+        auto index = indices[i];
+        face.vertices = reduce!((a,b) => a ~ this.vertices[b])(new Vertex[0], index);
+        face.normal = (face.vertices[1] - face.vertices[0]).cross(face.vertices[2] - face.vertices[1]).normalize;
+      }
+
+      onChangeShape;
+    }
+
+    public override:
+
+
+      float computeVolume() {
+        //原点と各面とを結んでできる三角錐の体積を計算
+        //そこからついでに総体積も計算
+        auto volume = 0;
+        foreach (face; faces) {
+          foreach (i; 0..face.vertices.length-2) {
+            auto v = face.vertices[0].cross(face.vertices[i+1]).dot(face.vertices[i+2]).abs / 6;
+            volume += v;
+          }
+        }
+        return volume;
+      }
+
+    mat3 computeInertiaTensor() {
+      //重心(原点)周りの慣性モーメントを求める
+      auto inertiaTensor = mat3(0);
+      float totalVolume = 0;
+      foreach (face; faces) {
+        foreach (k; 0..face.vertices.length-2) {
+          auto a = face.vertices[0];
+          auto b = face.vertices[k+1];
+          auto c = face.vertices[k+2];
+          auto I11 = (a.y^^2 + a.y*b.y + b.y^^2 + b.y*c.y + c.y^^2 + c.y*a.y + a.z^^2 + a.z*b.z + b.z^^2 + b.z*c.z + c.z^^2 + c.z*a.z) / 10;
+          auto I22 = (a.z^^2 + a.z*b.z + b.z^^2 + b.z*c.z + c.z^^2 + c.z*a.z + a.x^^2 + a.x*b.x + b.x^^2 + b.x*c.x + c.x^^2 + c.x*a.x) / 10;
+          auto I33 = (a.x^^2 + a.x*b.x + b.x^^2 + b.x*c.x + c.x^^2 + c.x*a.x + a.y^^2 + a.y*b.y + b.y^^2 + b.y*c.y + c.y^^2 + c.y*a.y) / 10;
+          auto I12 = (-2*a.x*a.y-a.x*b.y-a.x*c.y-b.x*a.y-2*b.x*b.y-b.x*c.y-c.x*a.y-c.x*b.y-2*c.x*c.y) / 20;
+          auto I13 = (-2*a.x*a.z-a.x*b.z-a.x*c.z-b.x*a.z-2*b.x*b.z-b.x*c.z-c.x*a.z-c.x*b.z-2*c.x*c.z) / 20;
+          auto I23 = (-2*a.y*a.z-a.y*b.z-a.y*c.z-b.y*a.z-2*b.y*b.z-b.y*c.z-c.y*a.z-c.y*b.z-2*c.y*c.z) / 20;
+          auto v = face.vertices[0].cross(face.vertices[k+1]).dot(face.vertices[k+2]).abs / 6;
+          auto I = mat3(I11, I12, I13,
+              I12, I22, I23,
+              I13, I23, I33) * v;
+          inertiaTensor += I;
+          totalVolume += v;
+        }
+      }
+      return inertiaTensor / totalVolume;
+    }
+
+    vec3 getMinPoint() {
+      vec3 result = vec3(float.infinity);
+      foreach (ref v; vertices) {
+        result.x = min(result.x, v.worldPosition.x);
+        result.y = min(result.y, v.worldPosition.y);
+        result.z = min(result.z, v.worldPosition.z);
+      }
+      return result;
+    }
+
+    vec3 getMaxPoint() {
+      vec3 result = vec3(-float.infinity);
+      foreach (ref v; vertices) {
+        result.x = max(result.x, v.worldPosition.x);
+        result.y = max(result.y, v.worldPosition.y);
+        result.z = max(result.z, v.worldPosition.z);
+      }
+      return result;
+    }
+
+    void update() {
+      foreach (ref v; vertices) {
+        v.worldPosition = rotate(v, Orientation) + Position;
+      }
+      foreach (face; faces) {
+        face.normal = (face.vertices[1].worldPosition - face.vertices[0].worldPosition).cross(face.vertices[2].worldPosition - face.vertices[1].worldPosition).normalize;
+      }
+      super.update;
+    }
+
+    vec3 support(vec3 d) {
+      auto dotP = dot(vertices[0], d);
+      Vertex result = vertices[0];
+      foreach (i; 1..vertices.length) {
+        result = dot(result.worldPosition, d) > dot(vertices[i].worldPosition, d) ? result : vertices[i];
+      }
+      return result.worldPosition;
+    }
+
+    Face supportFace(vec3 d) {
+      auto max = -float.infinity;
+      Face result;
+      foreach (face; faces) {
+        auto proj = face.normal.dot(d);
+        if (proj > max) {
+          max = proj;
+          result = face;
+        }
+      }
+      return result;
+    }
+
+    CustomObject createCustomObject() {
+      Material mat = new Material;
+      mat.withMaterial = (d, rc, u)  {
+        rc.defaulting;
+        u();
+      };
+      auto custom = new CustomObject(mat, ShaderStore.getShader("NormalGenerate"), Prim.Triangle);
+      custom.beginMesh;
+      custom.addAttribute!(3, "mVertex")(reduce!((a,b) => a ~ b.array)(new float[0], vertices), GpuSendFrequency.Static);
+      uint[] index;
+      foreach (idx; indices) {
+        foreach (j; 2..idx.length) {
+          index ~= idx[0];
+          index ~= idx[j-1];
+          index ~= idx[j];
+        }
+      }
+      custom.setIndex(index, GpuSendFrequency.Static);
+      custom.setUniformMatrix!(4, "mWorld")(mat4.identity.array);
+      custom.addDynamicUniformMatrix!(4, "mViewProj")({return SbyWorld.currentCamera.getViewProjectionMatrix.array;});
+      custom.endMesh;
+      return custom;
+    }
+
+    void updateCustomObject(CustomObject custom) {
+<<<<<<< HEAD
+      custom.update("mVertex", reduce!((a,b) => a ~ b.array)(new float[0], vertices));
+=======
+      custom.update("mVertex", reduce!((a,b) => a ~ b.worldPosition.array)(new float[0], vertices));
+>>>>>>> crystal_fix
+    }
+
+}

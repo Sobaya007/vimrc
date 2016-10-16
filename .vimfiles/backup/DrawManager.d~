@@ -1,0 +1,53 @@
+module sbylib.entity.DrawManager;
+
+import sbylib;
+
+/*
+Drawableを実装するものを管理します。
+Singletonなので、getInstanceを経由して使用します。
+
+stepAllは使用しないでください。
+*/
+
+private class TemptationDrawable : Drawable{
+	private bool delegate() func;
+
+	this(bool delegate() func) {
+		this.func = func;
+	}
+
+	override bool draw() {
+		return func();
+	}
+}
+
+class DrawManager {
+	private static DrawManager instance;
+	private this(){}
+	public static DrawManager getInstance() {return instance ? instance : (instance = new DrawManager);}
+
+	private static LinkList!(Drawable)[100] drawList;
+
+public static:
+	void draw(uint i) {
+		auto it = drawList[i].iterator;
+		while (it.hasNext) {
+			if (it.next.draw == false)
+				it.remove;
+		}
+	}
+
+	uint maxPriority() {
+		return drawList.length;
+	}
+
+	void add(Drawable draw, uint priority = 50) in {
+		assert(0 <= priority && priority < drawList.length, "Specified Priority " ~ to!string(priority) ~ " Is Out Of Range. Max Priority is " ~ to!string(drawList.length-1));
+	} body {
+		drawList[priority].push(draw);
+	}
+
+	void add(bool delegate() draw, uint priority = 50) {
+		add(new TemptationDrawable(draw), priority);
+	}
+}

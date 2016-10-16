@@ -1,0 +1,50 @@
+module sbylib.physics3d.BallJoint;
+
+import sbylib;
+
+//vx, vy, vzを拘束
+class BallJoint : Joint {
+
+  private:
+    vec3 aLocal, bLocal;
+    vec3 targetVel;
+    mat3 torqueUnitA, torqueUnitB;
+    vec3 denominator;
+  public:
+
+    this(RigidBody3D a, RigidBody3D b, vec3 aLocal, vec3 bLocal) {
+      super(a, b);
+      this.aLocal = aLocal;
+      this.bLocal = bLocal;
+    }
+
+    override void prepareSolve() {
+      auto v = ge.Position(b, bLocal) - ge.Position(a, aLocal);
+      targetVel = -v * 0;
+
+      auto ra = ge.Position(a, aLocal) - a.shape.Position;
+      auto rb = ge.Position(b, bLocal) - b.shape.Position;
+      auto torqueAx = cross(ra, vec3(1,0,0));
+      auto torqueBx = cross(rb, vec3(1,0,0));
+      auto torqueAy = cross(ra, vec3(0,1,0));
+      auto torqueBy = cross(rb, vec3(0,1,0));
+      auto torqueAz = cross(ra, vec3(0,0,1));
+      auto torqueBz = cross(rb, vec3(0,0,1));
+      auto torqueA = mat3(torqueAx, torqueAy, torqueAz);
+      auto torqueB = mat3(torqueBx, torqueBy, torqueBz);
+      torqueUnitA = a.worldInertiaInv * torqueA;
+      torqueUnitB = b.worldInertiaInv * torqueB;
+      denominator.x = 1 / (a.massInv + b.massInv + cross(torqueUnitA.column(0), ra).x + cross(torqueUnitB.column(0), rb).x);
+      denominator.y = 1 / (a.massInv + b.massInv + cross(torqueUnitA.column(1), ra).y + cross(torqueUnitB.column(1), rb).y);
+      denominator.z = 1 / (a.massInv + b.massInv + cross(torqueUnitA.column(2), ra).z + cross(torqueUnitB.column(2), rb).z);
+    }
+
+    override void solve() {
+      auto vel = b.getVelocity(ge.Position(b, bLocal)) - a.getVelocity(ge.Position(a, aLocal));
+      auto impulse = (targetVel - vel) * denominator;
+      a.shape.LinearVelocity -= impulse * a.massInv;
+      a.shape.AngularVelocity -= torqueUnitA * impulse;
+      b.shape.LinearVelocity += impulse * b.massInv;
+      b.shape.AngularVelocity += torqueUnitB * impulse;
+    }
+}

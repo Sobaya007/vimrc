@@ -1,0 +1,81 @@
+module Crystal;
+
+import model;
+import sbylib;
+import player;
+
+class Crystal {
+
+  Model model;
+  alias model this;
+
+  vec3 playerPos;
+
+  this(string filePath, mat4 transform) {
+    Material crystalMat = new Material;
+    crystalMat.withMaterial = (custom,rc,u){
+      custom.setUniform!(3, "lightPos")((playerPos + vec3(0,5,0)).array);//[0, 20, 0]);
+      custom.setUniform!(3, "cameraPos")(SbyWorld.currentCamera.getPos.array);
+      rc.defaulting();
+      rc.stencilTest(true,(ref Stencilsetting d){
+          d.Success = StencilWriting.Increment;
+          });
+      static float[1] glowing;
+      glowing[0] = 0;
+      custom.setUniform!(1, "glowing")(glowing);
+      u();
+      rc.stencilTest(true,(ref Stencilsetting d){
+          d.Func = StencilFunc.Greater;
+          d.Success = StencilWriting.Keep;
+          });
+      rc.cullFace(false);
+      rc.blendEquation(BlendEquation.Max);
+      rc.depthMask(false);
+      glowing[0] = 1;
+      custom.setUniform!(1, "glowing")(glowing);
+      u();
+<<<<<<< HEAD
+      rc.stencilTest(false,(ref Stencilsetting d){
+          d.Func = StencilFunc.Always;
+          });
+    };
+    this.model = new Model(filePath, transform, crystalMat, ShaderStore.getShader("Crystal"));
+
+=======
+      rc.defaulting();
+    };
+    this.model = new Model(filePath, transform, crystalMat, ShaderStore.getShader("Crystal"),
+        (Mesh m) {
+        //頂点をマージ
+        foreach (i; 0..m._vertices.length) {
+        foreach (j; i+1..m._vertices.length) {
+        if ((m._vertices[i] - m._vertices[j]).lengthSq > 0.001) continue;
+        foreach (k; 0..m._indices.length) {
+        if (m._indices[k] != j) continue;
+        m._indices[k] = i;
+        }
+        }
+        }
+        //法線をSMOOTHで再計算
+        m._normals[] = vec3(0);
+        foreach (i; 0..m._indices.length/3) {
+        auto v0 = m._vertices[m.indices[i*3]];
+        auto v1 = m._vertices[m.indices[i*3+1]];
+        auto v2 = m._vertices[m.indices[i*3+2]];
+
+        auto n = -(v1 - v0).xyz.cross((v2 - v1).xyz).normalize;
+        m._normals[m.indices[i*3]] += n;
+        m._normals[m.indices[i*3+1]] += n;
+        m._normals[m.indices[i*3+2]] += n;
+        }
+        foreach (i; 0..m._normals.length) {
+          m._normals[i] = m._normals[i].normalize;
+        }
+        });
+
+>>>>>>> crystal_fix
+    PlayerAnnouncer.getInstance.addListener((info) {
+        this.playerPos = info.pos;
+        });
+  }
+}

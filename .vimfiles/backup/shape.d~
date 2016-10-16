@@ -1,0 +1,133 @@
+module sbylib.physics3d.Shape;
+
+import sbylib;
+
+package class Vertex {
+  vec3 position;
+  vec3 worldPosition;
+  Face[] faces;
+
+  this(vec3 pos) {this.position = pos;}
+
+  alias position this;
+}
+
+package class Face {
+  Vertex[] vertices;
+  vec3 normal;
+}
+
+abstract class Shape {
+  private:
+    float volume;
+    CustomObject custom;
+    vec3 lower, upper;
+    protected bool visible = true;
+    vec3 _pos; //重心位置
+    vec3 _lVel; //重心速度(linear velocity)
+    quat _orientation; //もとの状態からの回転量(反時計周りが正)
+    vec3 _aVel; //回転速度(angular velocity)
+    mat3 _inertiaTensor; //正確にはこれに質量を掛けたものが慣性テンソル
+    package bool isRegistered = false;
+
+  public:
+    this() {
+      this.Position = vec3(0);
+      this.LinearVelocity = vec3(0);
+      this.Orientation = quat(0,0,0,1);
+      this.AngularVelocity = vec3(0);
+      this.volume = computeVolume;
+      this._inertiaTensor = computeInertiaTensor;
+      this.custom = createCustomObject;
+      custom.addDynamicUniformMatrix!(4, "mWorld")({
+          return (mat4.translate(Position) * Orientation.toMatrix4).array;
+          });
+    }
+
+    mat3 InertiaTensor() {
+      return _inertiaTensor;
+    }
+
+    float getVolume() {
+      return volume;
+    }
+
+    @nogc vec3 getLower() {
+      return lower;
+    }
+
+    @nogc vec3 getUpper() {
+      return upper;
+    }
+
+    void setVisible(bool visible) {
+      this.visible = visible;
+    }
+
+    void update() {
+      lower = getMinPoint;
+      upper = getMaxPoint;
+      updateCustomObject(custom);
+    }
+
+    void draw() {
+      if (visible)
+        custom.draw;
+    }
+
+    void step(PhysicsWorld3D world) {
+      with (world) {
+        //積分
+<<<<<<< HEAD
+        Position += LinearVelocity * timeStep;
+        Orientation = quat.createAxisAngle(AngularVelocity * timeStep) * Orientation;
+
+        //重力
+        LinearVelocity += gravity * timeStep;
+      }
+=======
+        pos += lVel * timeStep;
+        orientation = quat.createAxisAngle(aVel * timeStep) * orientation;
+
+        //重力
+        lVel += gravity * timeStep;
+      }
+      update;
+>>>>>>> crystal_fix
+    }
+
+    void onChangeShape() {
+      this.volume = computeVolume;
+<<<<<<< HEAD
+      this._inertiaTensor = computeInertiaTensor;
+    }
+
+    ref vec3 Position() @property @nogc {
+      return _pos;
+    }
+
+    ref vec3 LinearVelocity() @property @nogc {
+      return _lVel;
+    }
+
+    ref quat Orientation() @property @nogc {
+      return _orientation;
+    }
+
+    ref vec3 AngularVelocity() @property @nogc {
+      return _aVel;
+=======
+      this.inertiaTensor = computeInertiaTensor;
+>>>>>>> crystal_fix
+    }
+
+abstract:
+    float computeVolume();
+    mat3 computeInertiaTensor();
+    CustomObject createCustomObject();
+    vec3 getMaxPoint();
+    vec3 getMinPoint();
+    void updateCustomObject(CustomObject custom);
+    vec3 support(vec3 d) @nogc;
+    Face supportFace(vec3 d);
+}

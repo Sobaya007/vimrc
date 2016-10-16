@@ -1,0 +1,10 @@
+module sbylib.physics3d;
+
+public:
+import sbylib.physics3d.ConvexHull;
+import sbylib.physics3d.PhysicalCapsule;
+import sbylib.physics3d.PhysicalPolygon;
+import sbylib.physics3d.PhysicalSphere;
+import sbylib.physics3d.PhysicsWorld3D;
+import sbylib.physics3d.RigidBody3D;
+import sbylib.physics3d.Shape;

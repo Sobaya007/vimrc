@@ -1,0 +1,32 @@
+import std.stdio, std.string,std.range, std.conv, std.array, std.algorithm, std.math, std.typecons, std.functional, std.bigint;
+import core.sys.posix.stdlib;
+
+int N;
+int[] width, height;
+
+alias f = memoize!func;
+
+//現在の箱の大きさがWxHのとき追加で入れられる個数の最大値
+int func(int W, int H) {
+  int result = 0;
+  foreach (i; 0..N) {
+    if (width[i] < W && height[i] < H)  {
+      auto r = f(width[i], height[i]);
+      result = max(r, result);
+    }
+  }
+  return result + 1;
+}
+
+void main() {
+
+  N = readln.chomp.to!int;
+  width.length = height.length = N;
+  foreach (i; 0..N) {
+    auto tmp = readln.split.to!(int[]);
+    width[i] = tmp[0];
+    height[i] = tmp[1];
+  }
+
+  writeln(func(int.max, int.max)-1);
+}

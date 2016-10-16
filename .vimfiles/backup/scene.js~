@@ -1,0 +1,30 @@
+var Scenes = (()=>{
+  var s = {};
+  var a = [];
+  s.get = ()=>{
+    return a;
+  };
+  s.add = (as)=>{
+    a = a.concat(as);
+  };
+
+  s.theme = {
+    text : Color.format("3f1f00"),
+    bg : Color.format("ffefdf"),
+    button : Color.format("ffffcf"),
+    frame : Color.format("7f3f00"),
+    jobs : [
+      Color.make(0.53,1.0,1.0),
+      Color.make(1.0,0.53,1.0),
+      Color.make(1.0,1.0,0.53),
+      Color.make(0.69,1.0,0.44)]
+  };
+  s.jobName = ["プログラマ","デザイナー","音屋","レベルデザイナ"];
+  s.jobDesc = [
+    ["ゲーム本体を作成","します。他のメン", "バーをサポートす", "るツールも作れま", "す。"],
+    ["絵素材を作ります","。画面の構成を考", "えたりもします。"],
+    ["音響素材を作りま","す。"],
+    ["ゲーム全体のクオ","リティを底上げし", "ます。"]];
+
+  return s;
+})();

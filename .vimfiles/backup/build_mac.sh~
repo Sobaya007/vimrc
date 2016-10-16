@@ -1,0 +1,15 @@
+#! /bin/sh
+
+s=""
+s=$s" ./source/*.d"
+s=$s" ./source/collision/*.d"
+s=$s" ./source/collision/*/*.d"
+s=$s" ./source/model/*.d"
+s=$s" ./source/model/*/*.d"
+s=$s" ./source/enemy/*.d"
+s=$s" ./source/SbyLib/*.d"
+s=$s" ./source/SbyLib/*/*.d"
+s=$s" ./derelict-mac/lib/*"
+s=$s" ./derelict/*/*.d"
+
+dmd -L-ldl $s -of./output_mac/ShapeSphere

@@ -1,0 +1,33 @@
+module collision.collisionObject.PlayerCollisionObject;
+
+import collision.imports;
+import Player;
+import ElasticSphere;
+
+class PlayerCollisionObject : CollisionObject {
+public:
+	Player player;
+public:
+
+	this(Player player) {
+		this.player = player;
+		init();
+		super(player.physicalSphere);
+	}
+
+	override void update() {
+		updateAABB();
+		super.update();
+	}
+
+protected:
+	void init() {
+		listener = (Array!CollisionInfo info){};
+		updateAABB();
+	}
+
+	void updateAABB() {
+		_aabb.minimum = player.physicalSphere.getMinPoint;
+		_aabb.maximum = player.physicalSphere.getMaxPoint;
+	}
+}

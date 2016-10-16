@@ -1,0 +1,502 @@
+Scenes.add((()=>{
+
+var Theme = Scenes.theme;
+var jobName = Scenes.jobName;
+var eventMessage = Scenes.eventMessage;
+var eventDescription = Scenes.eventDescription;
+
+var ProgressDisplay = Poyo.scene("ProgressDisplay",(Po,arg)=>{
+  var scene = {};
+  var plate = Po.ease(-60).cubic.in(40);
+  var bars = [];
+  for(var i=0;i<6;i++)bars.push(Po.ease(0).cubic.out(20));
+  var btnE = Po.ease(-1).cubic.out(20);
+  var next = Shape.roundrect(130,50,10).with(Shape.translate(-65,-25)).with(Po.button(()=>{
+    Music.once("decide");
+    Po.transit("PlanDisplay",arg);
+  }));
+  next.translate(Po.size.x-100,40);
+  scene.spawn = ()=>{};
+  var nextFlag = false;
+  scene.step = ()=>{
+    if(Po.local == 0){
+      plate.set(0);
+    }
+    if(Po.local >= 40 && Po.local < 120+16){
+      if((Po.local-40)%16 == 0){
+        bars[(Po.local-40)/16].set(1);
+        if ((Po.local-40) / 16 < Schedule.memberList.length)
+          Music.once("move");
+      }
+    }
+    if(Po.local == 120){
+      btnE.set(0);
+    }
+    next.onCollide(Po.mouse.x, Po.mouse.y, (x,y) => {
+      if (nextFlag == false) {
+        nextFlag = true;
+        Music.once("over");
+      }
+    }, (x,y) => {
+      nextFlag = false;
+    });
+  };
+  var slide = Po.ease(0).cubic.inOut(20);
+  scene.end = (t,kill)=>{
+    if(t==0)slide.set(-Po.size.x);
+    if(slide.done)kill();
+  };
+  scene.draw = (R,acc)=>{
+    R.translated(slide(),0,()=>{
+      R.translated(Po.size.x,0,()=>{
+        acc();
+      });
+      Shape.rect(Po.size.x,Po.size.y).with(R.fill(Theme.bg).draw);
+      R.clipped(0,0,Po.size.x,Po.size.y,()=>{
+        R.translated(0,plate(),()=>{
+          Shape.text(arg?"最終結果/メンバー":"進捗どうですか？/メンバー").leftUp.scale(40,40).translate(15,15).with(R.fill(Theme.text).shadow(5).draw);
+        });
+        for(var i=0;i<Schedule.memberList.length;i++){
+          R.translated(90,80+i*80,()=>{
+            var j = Schedule.memberList[i].job;
+            var name = Schedule.getJobInitial(j)+"r";
+            var img = Picture.get(name);
+            //R.darkened(Schedule.memberList[i].state == STATE_KIKYO ? 0.3 : 0, ()=>{
+              Shape.image(name).scale(50/img.width,100/img.height).translate(-30+30*bars[i](),-10).with(R.fill(Theme.jobs[j]).draw);
+            //});
+            Shape.text(Schedule.memberList[i].name).right.scale(18,18).translate(-33+30*bars[i](),20).with(R.fill(Color.black).draw);
+            Shape.rect(5,40).translate(85,0).with([
+              R.fill(Color.apply(Theme.jobs[j],0.7,0)).shadow(5).draw,
+              R.stroke(2,Color.apply(Theme.jobs[j],0.5,0)).draw,
+            ]);
+            if(bars[i]()>0.01){
+              var d = Schedule.memberList[i].getWeekShinchoku();
+              var ds = Math.floor(d*100)+"%";
+              if(Schedule.memberList[i].state == STATE_ZEKKI)ds="？",d=0;
+              if(Schedule.memberList[i].state == STATE_KIKYO)ds="×",d=0;
+              if(Schedule.memberList[i].state != STATE_ZEKKI && Schedule.memberList[i].state != STATE_KIKYO){
+                Shape.rect(bars[i]()*d*300,40).translate(100,0).with([
+                  R.fill(Color.apply(Theme.jobs[j],0.7,0)).shadow(5).draw,
+                  R.stroke(2,Color.apply(Theme.jobs[j],0.5,0)).draw,
+                ]);
+              }
+              if(d<0.3){
+                Shape.text(ds).left.scale(40,40).translate(110 + bars[i]()*d*300,20).with(R.fill(Color.black.alpha(bars[i]())).shadow(5).draw);
+              }else{
+                Shape.text(ds).right.scale(40,40).translate(90 + bars[i]()*d*300,20).with(R.fill(Color.white.alpha(bars[i]())).shadow(5).draw);
+              }
+            }
+            if(bars[i+1]()>0.01){
+              R.withAlpha(bars[i+1](),()=>{
+                R.translated(0,(1-bars[i+1]())*40,()=>{
+                  var tecUp = Schedule.memberList[i].skill - Schedule.memberList[i].oldSkill;
+                  var oftUp = Schedule.memberList[i].ofton - Schedule.memberList[i].oldOfton;
+                  }
+                });
+              });
+            }
+          });
+        }
+        R.translated(0,btnE()*100,()=>{
+          next.with([
+            R.fill(Theme.button).shadow(next.hover*3+5).draw,
+            R.stroke(2,Theme.frame).draw
+          ]);
+          R.transformed(next,()=>{
+            Shape.text("OK").center.scale(40,40).with(R.fill(Theme.text).draw);
+          });
+        });
+      });
+    });
+  };
+  return scene;
+});
+
+var PlanDisplay = Poyo.scene("PlanDisplay",(Po,arg)=>{
+  var scene = {};
+  var plate = Po.ease(-60).cubic.in(40);
+  var next = Shape.roundrect(130,50,10).with(Shape.translate(-65,-25)).with(Po.button(()=>{
+    Music.once("decide");
+    if(!arg)Po.transit("SDT");
+    else Po.transit("Result");
+  }));
+  next.translate(Po.size.x-100,40);
+  var Task;
+  var tabX = Po.size.x * 0.15;
+  var tabY = Po.size.y * 0.16;
+  var tabW = Po.size.x * 0.7;
+  var tabH = Po.size.y * 0.8;
+  var table = Shape.rect(tabW,tabH);
+  table.translate(tabX,tabY);
+  var tdX = Po.ease(0).cubic.inOut(5);
+  if(Schedule.date<2)tdX.force(0);
+  else if(Schedule.date>8)tdX.force(8);
+  else tdX.force(Schedule.date-2);
+  var itX = Po.ease(0).cubic.inOut(10);
+  Poyo.tdX = tdX;
+
+  function numT(d,s,sc,dy,r){
+    var dW = Shape.numText(d.toString());
+    var sW = Shape.text(s);
+    var aW = dW.size.x - (dW.size.x + sW.size.x + 0.1) / 2;
+    aW *= sc;
+    Shape.numText(d.toString()).right.scale(sc,sc).translate(aW,dy).with(r);
+    Shape.text(s).left.scale(sc*0.9,sc*0.9).translate(aW,dy).with(r);
+  }
+
+  Task = (()=>{
+    var k = {};
+    k.carry = null;
+    k.reiD = Po.ease(0).cubic.inOut(5);
+    k.itmD = Po.ease(0).cubic.inOut(10);
+
+    k.regd = [];//registered tasks
+    k.item = [];//free tasks
+    var jobx = [0,0,0,0];
+    var joby = [0,0,0,0];
+    Schedule.allTask.forEach((t)=>{
+      if(t.assign != null){
+        var mem = 0;
+        for(var i=0;i<Schedule.memberList.length;i++){
+          if(t.assign == Schedule.memberList[i])mem = i;
+        }
+        k.regd.push({
+          x:t.startDate, // date
+          y:mem, // member
+          e:t.assign.job, // job
+          w:t.info.period, // width
+          p:t.shinchoku, // progress
+          i:t.info.id, // id
+          t:t.info.name // title
+        });
+      }else{
+        var i = t.info.job;
+        var hei = [27,37,43,43];
+        if(jobx[i]+t.info.period > 2)jobx[i]=0, joby[i]++;
+        k.item.push({
+          x:10+80*jobx[i],
+          y:10+hei[i]*joby[i],
+          e:i,
+          w:t.info.period,
+          p:t.shinchoku,
+          i:t.info.id,
+          t:t.info.name
+        });
+        jobx[i]+=t.info.period;
+      }
+    });
+    function registerCarry(){
+      var px,py;
+      k.carry.s.affined((v)=>{
+        px = v[2], py = v[5];
+      })
+      Po.removeDrag(k.carry.s);
+      var tx = Math.floor((px-tabX)/(tabW/4)+0.5);
+      var ty = Math.floor((py-tabY)/(tabH/6)+0.5)-1;
+      var valid = true;
+      valid = valid && (tx+tdX.at() >= 0);
+      valid = valid && (tx+k.carry.w+tdX.at() <= 12);
+      valid = valid && ty < Schedule.memberList.length;
+      valid = valid && Schedule.memberList[ty].job == k.carry.e;
+      if(valid)k.regd.forEach((r)=>{
+        if(valid && r.y==ty){
+          var col = Util.intersect(r.x+0.1,0,r.w-0.2,1)(tx+tdX.at()+0.1,0,k.carry.w-0.2,1);
+          if(col!=null)valid = false;
+        }
+      });
+      if(valid){
+        var info = null;
+        for(var i=0;i<Schedule.allTaskInfo.length;i++){
+          if(Schedule.allTaskInfo[i].id == k.carry.i){
+            info = Schedule.allTaskInfo[i];
+          }
+        }
+        if(!info || !Schedule.memberList[ty].addTask(info,tx+tdX.at())){
+          valid = false;
+        }
+      }
+      if(ty<0 || ty>4 || tx>3 || !valid){//item
+        if(py<itemY+20 || py>Po.size.y*0.8-70 || px<itemX-20)px = itemX + 20, py = itemY + 20;
+        k.item.push({x:px-itemX,y:py-itemY,e:k.carry.e,i:k.carry.i,p:k.carry.p,w:k.carry.w,t:k.carry.t});
+      }else{
+        k.regd.push({x:tx+tdX.at(),y:ty,e:k.carry.e,i:k.carry.i,p:k.carry.p,w:k.carry.w,t:k.carry.t});
+      }
+      k.setButtons(tdX.at(),itX.at());
+      k.carry = null;
+    }
+    k.setButtons = (tx,ix)=>{
+      k.regd.forEach((t)=>{
+        if(t.sr)Po.removeButton(t.sr);
+      });
+      k.item.forEach((t)=>{
+        if(t.sr)Po.removeButton(t.sr);
+      });
+      k.regd.forEach((t)=>{
+        t.s = Shape.roundrect(t.w*tabW/4-10,tabH/6-20,5);
+        t.s.translate(tabX+(t.x-tx)*tabW/4+5,tabY+tabH/6+t.y*tabH/6+10);
+      });
+    };
+    k.setButtons(tdX.at(),itX.at());
+    return k;
+  })();
+
+  var nextFlag = false;
+  scene.step = ()=>{
+    if(Po.local == 0){
+      plate.set(0);
+    }
+    next.onCollide(Po.mouse.x, Po.mouse.y, (x,y) => {
+      if (nextFlag == false) {
+        nextFlag = true;
+        Music.once("over");
+      }
+    }, (x,y) => {
+      nextFlag = false;
+    });
+  };
+  var slide = Po.ease(0).cubic.inOut(30);
+  scene.end = (t,kill)=>{
+    if(t==0)slide.set(1);
+    if(slide.done)kill();
+  }
+  scene.draw = (R,acc)=>{
+    R.translated(0,slide()*Po.size.y,()=>{
+      Shape.rect(Po.size.x,Po.size.y).with(R.fill(Color.white).draw);
+      Shape.rect(tabW,tabH).invert()
+        .translate(tabX,tabY).with([
+          R.fill(Theme.bg).shadow(10).draw,
+          R.stroke(2,Theme.frame).draw
+        ]);
+      R.translated(0,-Po.size.y,()=>{
+        acc();
+      });
+      
+      function drawTask(t){
+        if(Schedule.memberList[t.y].state == STATE_ZEKKI){
+          R.darkened(0.2,()=>{
+            R.lightened(0.9,()=>{
+              t.s.with(R.fill(Theme.jobs[t.e]).shadow(5).draw);
+            });
+          });
+        }else{
+          R.lightened(0.9,()=>{
+            t.s.with(R.fill(Theme.jobs[t.e]).shadow(5).draw);
+          });
+          R.transformed(t.s,()=>{
+            R.clipped(0,0,t.w*t.p*tabW/4,tabH/6,()=>{
+              t.s.with(R.fill(Theme.jobs[t.e]).draw);
+            });
+          });
+        }
+        R.darkened(0.3,()=>{
+          t.s.with(R.stroke(2,Theme.jobs[t.e]).draw);
+        });
+        var sz = 30;
+        sz = Math.min(sz,(t.w*tabW/4-20)/Shape.text(t.t).size.x);
+        R.transformed(t.s,()=>{
+          Shape.text(t.t).leftUp.scale(sz,sz).translate(5,5+(35-sz)/2).with(R.fill(Color.black).draw);
+        });
+      }
+      
+      R.transformed(table,()=>{
+        for(var i=0;i<Schedule.memberList.length;i++){
+          var j = Schedule.memberList[i].job;
+          R.translated(0,tabH*(i+1)/6,()=>{
+            var name = Schedule.getJobInitial(j)+"r";
+            var img = Picture.get(name);
+            R.translated(-50,0,()=>{
+              //R.darkened(Schedule.memberList[i].state == STATE_KIKYO ? 0.3 : 0, ()=>{
+                Shape.image(name).scale(40/img.width,80/img.height).with(R.fill(Theme.jobs[j]).draw);
+              //});
+              Shape.text(Schedule.memberList[i].name).right.scale(18,18).translate(0,20).with(R.fill(Color.black).draw);
+            })
+          });
+        }
+      });
+      
+      R.clipped(tabX,tabY,tabW,tabH,()=>{
+        R.transformed(table,()=>{
+          Shape.line(5,tabH/6*0.7,tabW-5,tabH/6*0.7).with(R.stroke(1,Color.black).draw);
+          for(var i=0;i<Schedule.memberList.length;i++){
+            var j = Schedule.memberList[i].job;
+            R.translated(0,tabH*(i+1)/6,()=>{
+              var unableToSee = Schedule.memberList[i].state == STATE_KIKYO || Schedule.memberList[i].state == STATE_ZEKKI;
+              R.darkened(unableToSee?0.2:0,()=>{
+                R.lightened(0.7,()=>{
+                  Shape.rect(tabW,tabH/6).with(R.fill(Theme.jobs[j]).draw);
+                });
+                Shape.rect(Schedule.date*tabW/4-tdX()*tabW/4,tabH/6).with(R.fill(Theme.jobs[j]).draw);
+              });
+            });
+          }
+          for(var i=0;i<5;i++){
+            R.translated(0,tabH*(i+1)/6,()=>{
+              Shape.line(5,0,tabW-5,0).with(R.stroke(i==0?2:1,Color.black).draw);
+            });
+          }
+          R.translated(-tdX()*tabW/4,0,()=>{
+            for(var i=0;i<12;i++){
+              R.translated(tabW*i/4,0,()=>{
+                if(i%4==0)Shape.line(0,5,0,tabH-5).with(R.stroke(2,Color.grey).draw);
+                else Shape.line(0,tabH/6*0.7+5,0,tabH-5).with(R.stroke(1,Color.grey).draw);
+              });
+            }
+            for(var i=0;i<3;i++){
+              R.translated(tabW*(i+0.5),tabH/18,()=>{
+                numT((i+6).toString(),"月",35,0,R.fill(Color.black).draw);
+              });
+            }
+          });
+        });
+      });
+      R.clipped(tabX,tabY,tabW,tabH,()=>{
+        R.translated(Task.reiD()*tabW/4,0,()=>{
+          Task.regd.forEach((i)=>{
+            drawTask(i);
+          });
+        });
+      });
+      Shape.rect(tabW,tabH).translate(tabX,tabY).with(R.stroke(2,Theme.frame).draw);
+
+      R.translated(0,plate(),()=>{
+        Shape.text(arg?"最終結果/予定表":"進捗どうですか？/予定表").leftUp.scale(40,40).translate(15,15).with(R.fill(Theme.text).shadow(5).draw);
+      });
+      next.with([
+        R.fill(Theme.button).shadow(next.hover*3+5).draw,
+        R.stroke(2,Theme.frame).draw
+      ]);
+      R.transformed(next,()=>{
+        Shape.text("OK").center.scale(40,40).with(R.fill(Theme.text).draw);
+      });
+    });
+  };
+  return scene;
+});
+
+var EventDisplay = Poyo.scene("EventDisplay",(Po,arg)=>{
+  Music.once("event");
+  var scene = {};
+  var plate = Po.ease(-60).cubic.in(40);
+  var btnE = Po.ease(-1).cubic.out(20);
+  var next = Shape.roundrect(130,50,10).with(Shape.translate(-65,-25)).with(Po.button(()=>{
+    Music.once("decide");
+    Po.transit("ProgressDisplay",arg);
+  }));
+  next.translate(Po.size.x-100,40);
+  var framePos = Po.ease(0).cubic.inOut(20);
+  var leftBtn = Shape.polygon([0,0,60,-25,60,25,0,0]).with(Po.button(()=>{
+    Music.once("move");
+    if(framePos.at()!=0){
+      framePos.set(framePos.at()-1);
+      rightBtn.enable();
+      if(framePos.at()==0){
+        leftBtn.disable();
+      }
+    }
+  }));
+  leftBtn.translate(40,Po.size.y*0.5);
+  var rightBtn = Shape.polygon([0,0,-60,-25,-60,25,0,0]).with(Po.button(()=>{
+    Music.once("move");
+    if(framePos.at()!=Schedule.allEvents.length-1){
+      framePos.set(framePos.at()+1);
+      leftBtn.enable();
+      if(framePos.at()==Schedule.allEvents.length-1){
+        rightBtn.disable();
+      }
+    }
+  }));
+  rightBtn.translate(Po.size.x-40,Po.size.y*0.5);
+  leftBtn.disable();
+  if(Schedule.allEvents.length==1)rightBtn.disable();
+
+  scene.step = ()=>{
+    if(Po.local == 0){
+      plate.set(0);
+    }
+    if(Po.local == 40){
+      btnE.set(0);
+    }
+  };
+  var slide = Po.ease(0).cubic.inOut(20);
+  scene.end = (t,kill)=>{
+    if(t==0)slide.set(-Po.size.x);
+    if(slide.done)kill();
+  };
+  scene.draw = (R,acc)=>{
+    R.translated(slide(),0,()=>{
+      R.translated(Po.size.x,0,()=>{
+        acc();
+      });
+      Shape.rect(Po.size.x,Po.size.y).with(R.fill(Theme.bg).draw);
+      R.translated(0,plate(),()=>{
+        Shape.text("イベント発生").leftUp.scale(40,40).translate(15,15).with(R.fill(Theme.text).shadow(5).draw);
+      });
+      R.translated(0,btnE()*100,()=>{
+        next.with([
+          R.fill(Theme.button).shadow(next.hover*3+5).draw,
+          R.stroke(2,Theme.frame).draw
+        ]);
+        R.transformed(next,()=>{
+          Shape.text("OK").center.scale(40,40).with(R.fill(Theme.text).draw);
+        });
+      });
+      R.translated(-framePos()*Po.size.x,0,()=>{
+        Schedule.allEvents.forEach((e,i)=>{
+          if(slide.at()!=0 && i!=framePos.at())return;
+          var sa = Shape.roundrect(Po.size.x*0.6,Po.size.y*0.7,10).translate(Po.size.x*0.2+i*Po.size.x,Po.size.y*0.2);
+          sa.with([
+            R.fill(Theme.button).shadow(10).draw,
+            R.stroke(3,Theme.frame).draw
+          ]);
+          R.transformed(sa,()=>{
+            Shape.line(20,Po.size.y*0.5,Po.size.x*0.6-20,Po.size.y*0.5).with(R.stroke(3,Theme.frame).shadow(1).draw);
+            Shape.circle(6).translate(20,Po.size.y*0.5).with(R.fill(Theme.frame).shadow(3).draw);
+            Shape.circle(6).translate(Po.size.x*0.6-20,Po.size.y*0.5).with(R.fill(Theme.frame).shadow(1).draw);
+            R.translated(Po.size.x*0.3,Po.size.y*0.6-20,()=>{
+              Shape.text(e.member.name+eventMessage[e.id]).center.scale(30,30).with(R.fill(Theme.text).draw);
+            });
+            R.translated(Po.size.x*0.3,Po.size.y*0.6+20,()=>{
+              Shape.text(eventDescription[e.id]).center.scale(30,30).with(R.fill(Theme.text).draw);
+            });
+            //画像
+            var name;
+            switch (e.id) {
+              case EVENT_KIKYO:
+                name = "kikyo";
+                break;
+              case EVENT_ZEKKI:
+                name = "zekki";
+                break;
+              case EVENT_PC_BREAK:
+                name = "break";
+                break;
+            }
+            var img = Picture.get(name);
+            Shape.image(name).scale(200 / img.width, 200 / img.height).translate(160,20).with(R.draw);
+
+            name = Schedule.getJobInitial(e.member.job) + "f";
+            img = Picture.get(name);
+            Shape.image(name).scale(100 / img.width, 200 / img.height).translate(40,20).with(R.draw);
+          });
+        });
+      });
+      R.darkened((1-leftBtn.enabled)*0.3,()=>{
+        leftBtn.with([
+          R.fill(Theme.button).shadow(leftBtn.hover*5+5).draw,
+          R.stroke(3,Theme.frame).draw
+        ]);
+      });
+      R.darkened((1-rightBtn.enabled)*0.3,()=>{
+        rightBtn.with([
+          R.fill(Theme.button).shadow(rightBtn.hover*5+5).draw,
+          R.stroke(3,Theme.frame).draw
+        ]);
+      });
+    });
+  };
+  return scene;
+});
+
+return [ProgressDisplay,PlanDisplay,EventDisplay];
+
+})());

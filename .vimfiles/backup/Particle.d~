@@ -1,0 +1,43 @@
+module player.Particle;
+
+import sbylib;
+import player;
+import player.PlayerShape;
+
+class Particle {
+  vec3 position;
+  vec3 velocity;
+  vec3 normal;
+  vec3 force;
+  vec3 extForce;
+  bool isGround;
+  bool isStinger;
+  Particle[] next;
+
+  this(vec3 p) {
+    this.position = p;
+    this.normal = normalize(p);
+    this.velocity = vec3(0);
+    this.force = vec3(0);
+    this.extForce = vec3(0);
+  }
+
+  void move() {
+    velocity += (force + extForce) * force_coefficient;
+    vec3 useVelocity = velocity;
+
+    immutable limit = 40;
+    immutable useLimit = 20;
+    if (useVelocity.lengthSq > useLimit^^2) {
+      useVelocity *= useLimit / useVelocity.length;
+    }
+    if (velocity.lengthSq > limit^^2) {
+      velocity *= limit / velocity.length;
+    }
+
+    position += useVelocity * timeStep;
+
+    isGround = false;
+    force = vec3(0);
+  }
+}	

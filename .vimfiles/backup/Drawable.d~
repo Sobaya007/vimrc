@@ -1,0 +1,11 @@
+module sbylib.entity.Drawable;
+
+import sbylib;
+
+/*
+ゲーム中で描画されるものを表します。1フレームに1回drawします。
+*/
+
+interface Drawable {
+	bool draw();
+}

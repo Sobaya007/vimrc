@@ -1,0 +1,20 @@
+module scene.SceneEnding;
+
+import scene.imports;
+
+class SceneEnding : SceneBase {
+	mixin singleton!();
+
+	private this() {
+	}
+
+	override void init() {
+		writeln("init SceneEnding");
+
+	}
+
+	override Scene update() {
+
+		return null;
+	}
+}

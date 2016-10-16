@@ -1,0 +1,514 @@
+const JOB_PROGRAMMER = 0;
+const JOB_DESIGNER = 1;
+const JOB_MUSIC_CREATOR = 2;
+const JOB_LEVEL_DESIGNER = 3;
+
+const ACTION_POYASHIMI = 0;
+const ACTION_MAZAI = 1;
+const ACTION_BOOK = 2;
+const ACTION_TWITTER = 3;
+
+const STATE_NORMAL = 0;
+const STATE_POYASHIMI = 1;
+const STATE_KIKYO = 2;
+const STATE_ZEKKI = 3;
+const STATE_BOOK = 4;
+const STATE_TWITTER = 5;
+const STATE_PC_BREAK = 6;
+
+const EVENT_ZEKKI = 0;
+const EVENT_KIKYO = 1;
+const EVENT_PC_BREAK = 2;
+
+var Schedule = (()=>{
+  var schedule = {};
+  schedule.memberList;
+  schedule.date = 0;
+  schedule.allTaskInfo = [];
+  schedule.allTask = [];
+  schedule.allEvents = [];
+
+  schedule.dependCollided = 0;
+  schedule.changeSchedule = 0;
+
+  var Task = (info) => {
+    var obj = {};
+    obj.info = info;
+    obj.shinchoku = 0;
+    obj.oldShinchoku = 0;
+    obj.startDate = 0;
+    obj.assign = null;
+    return obj;
+  };
+
+  var TaskInfo = (id,name,job,period,depend,halfDepend,explain) => {
+    var obj = {};
+    obj.id = id;
+    obj.name = name;
+    obj.job = job;
+    obj.period = period;
+    obj.depend = depend;
+    obj.halfDepend = halfDepend;
+    obj.explain = explain;
+    return obj;
+  };
+
+  var Event = (eventID, member) => {
+    var obj = {};
+    obj.member = member;
+    obj.id = eventID;
+    return obj;
+  };
+
+  var Member = (job, idx) => {
+    var names = ["ナマズ", "ファイ", "ナリ", "ビッド", "ソバヤ"];
+    var obj = {};
+    obj.job = job;
+    obj.name = names[idx];
+    obj.task = [];
+    obj.currentTask = null;
+    obj.state = STATE_NORMAL;
+    obj.hp = 5;
+    obj.mp = 5;
+    obj.shiki = 0.5;
+    obj.skill = 3;
+    obj.ofton = 0.9;
+    obj.addTaskList = [];
+    obj.removeTaskIdList = [];
+    obj.startPoint = 0;
+    obj.endPoint = 0;
+
+    obj.addTask = (info, startDate) => {
+      var target = null;
+      for (var i = 0; i < schedule.allTask.length; i++) {
+        var t = schedule.allTask[i];
+        if (t.info.id == info.id) {
+          target = t;
+          break;
+        }
+      }
+      //同じ場所でのadd/removeのときはなかったことに
+      for(var i = 0; i < obj.removeTaskIdList.length; i++) {
+        if (obj.removeTaskIdList[i] == info.id) {
+          target.assign = obj;
+          target.startDate = startDate;
+          obj.removeTaskIdList.splice(i, 1);
+          return true;
+        }
+      }
+      //担当する役職が違った場合にはじく
+      if (target.info.job != obj.job) return false;
+      target.startDate = startDate;
+      var targetInfo = target.info;
+      for (var i = 0; i < obj.task.length; i++) {
+        var task = obj.task[i];
+        //startDateが被るようなのだけははじく
+        var exist = true;
+        obj.removeTaskIdList.forEach((t)=>{
+          if(task.info.id == t)exist = false;
+        });
+        if (exist && task.startDate == startDate) {
+          return false;
+        }
+      }
+      obj.addTaskList.push(target);
+      return true;
+    };
+
+    obj.removeTask = (id) => {
+      //すでに登録済みのタスクに対してやる場合
+      var idx = -1;
+      for (var i = 0; i < obj.task.length; i++) {
+        if (obj.task[i].info.id == id) {
+          idx = i;
+          break;
+        }
+      } 
+      if (idx != -1) {
+        obj.task[idx].assign = null;
+        obj.removeTaskIdList.push(obj.task[idx].info.id);
+        return true;
+      }
+      //半登録状態のタスクに対してやる場合
+      for (var i = 0; i < obj.addTaskList.length; i++) {
+        if (obj.addTaskList[i].info.id == id) {
+          idx = i;
+          break;
+        }
+      }
+      if (idx != -1) {
+        obj.addTaskList.splice(idx, 1);
+        return true;
+      }
+      console.log("obj.remove was Failed");
+      return false;
+    };
+
+    obj.confirm = () => {
+      var addNum = obj.addTaskList.length;
+      var removeNum = obj.removeTaskIdList.length;
+
+      //プランの変更により士気低下
+      //式は適当
+      //初日のみ士気の低下はなし
+      if (schedule.date > 0) {
+        obj.shiki -= (addNum + removeNum) * 0.04;
+        if(addNum+removeNum > 0)schedule.changeSchedule+=0.5;
+      }
+
+      obj.removeTaskIdList.forEach((id) => {
+        var idx = -1;
+        for (var i = 0; i < obj.task.length; i++) {
+          var task = obj.task[i];
+          if (task.info.id == id) {
+            idx = i;
+            break;
+          }
+        }
+        obj.task.splice(idx, 1);
+      });
+      for (var i = 0; i < addNum; i++) {
+        obj.addTaskList[i].assign = obj;
+        obj.task.push(obj.addTaskList[i]);
+      }
+      obj.addTaskList = [];
+      obj.removeTaskIdList = [];
+
+      obj.task.sort((a,b) => {
+        if (a.startDate < b.startDate) return -1;
+        return 1;
+      });
+
+      if (obj.currentTask != null && obj.currentTask.assign != obj) obj.currentTask = null;
+
+    };
+
+    obj.revert = () => {
+      addTaskList = [];
+      removeTaskIdList = [];
+    };
+
+    obj.canGiveAction = (action) => {
+      if (action == ACTION_POYASHIMI) {
+        if (obj.state == STATE_POYASHIMI || obj.state == STATE_BOOK || obj.state == STATE_TWITTER || obj.state == STATE_KIKYO || obj.hp <= 0) return false;
+      } else if (action == ACTION_MAZAI) {
+        if (obj.state == STATE_KIKYO || obj.hp <= 0) return false;
+      } else if (action == ACTION_BOOK) {
+        if (obj.state == STATE_POYASHIMI || obj.state == STATE_BOOK || obj.state == STATE_TWITTER || obj.state == STATE_KIKYO || obj.hp <= 0) return false;
+      } else if (action == ACTION_TWITTER) {
+        if (obj.state == STATE_POYASHIMI || obj.state == STATE_BOOK || obj.state == STATE_TWITTER || obj.state == STATE_KIKYO || obj.hp <= 0) return false;
+      } 
+      return true;
+    }
+
+    obj.applyAction = (action) => {
+      if (obj.canGiveAction(action) == false) return false;
+      if (action == ACTION_POYASHIMI) {
+        obj.hp += 2;
+        obj.ofton += 0.1;
+        obj.state = STATE_POYASHIMI;
+      } else if (action == ACTION_MAZAI) {
+        obj.mp += 1;
+        obj.hp -= 1;
+        obj.ofton -= 0.2;
+      } else if (action == ACTION_BOOK) {
+        obj.skill += 0.3;
+        obj.shiki += 0.1;
+        obj.state = STATE_BOOK;
+      } else if (action == ACTION_TWITTER) {
+        obj.shiki += 0.4;
+        obj.state = STATE_TWITTER;
+      }
+      return true;
+    };
+
+    obj.step = () => {
+      obj.oldHp = obj.hp;
+      obj.oldMp = obj.mp;
+      obj.oldShiki = obj.shiki;
+      obj.oldSkilll = obj.skill;
+      obj.oldOfton = obj.ofton;
+      obj.startPoint = obj.endPoint;
+
+      if (obj.state == STATE_ZEKKI) obj.state = STATE_NORMAL;
+
+      if(schedule.date!=5 && schedule.date!=11){//発表時はイベント無し
+        //絶望の起床
+        if (Math.random() <= 1 - obj.ofton) {
+          obj.state = STATE_ZEKKI;
+        }
+
+        //PCぶっこわれ
+        if (Math.random() <= 0.05) {
+          obj.state = STATE_PC_BREAK;
+        }
+      }
+
+      if (obj.hp <= 0) {
+        obj.state = STATE_KIKYO;
+      }
+      if (obj.state == STATE_KIKYO && obj.hp != -114514) {
+        schedule.allEvents.push(Event(EVENT_KIKYO, obj));
+        obj.hp = - 114514;
+        return;
+      }
+      if (obj.state == STATE_POYASHIMI) {
+        obj.state = STATE_NORMAL;
+        return;
+      }
+
+      if (obj.state == STATE_BOOK) {
+        obj.state = STATE_NORMAL;
+        return;
+      }
+
+      if (obj.state == STATE_TWITTER) {
+        obj.state = STATE_NORMAL;
+        return;
+      }
+
+      if (obj.state == STATE_ZEKKI) {
+        schedule.allEvents.push(Event(EVENT_ZEKKI, obj));
+        obj.ofton += 0.05;
+      }
+      
+      if (obj.state == STATE_PC_BREAK) {
+        schedule.allEvents.push(Event(EVENT_PC_BREAK, obj));
+        obj.state = STATE_NORMAL;
+        obj.shiki -= 0.3;
+        return;
+      }
+
+      //中間発表で士気向上
+      if (schedule.date == 6) obj.shiki += 0.3;
+
+      obj.shiki -= 0.1;
+      obj.mp += obj.shiki;
+      obj.ofton -= 0.05;
+      obj.startPoint = -1;
+
+      var currentShinchoku = Math.max(0,obj.mp * obj.skill / 16);
+
+      var execTask = () => {
+        //次のタスクを設定
+        if (obj.currentTask == null) {
+          for (var i = 0; i < obj.task.length; i++) {
+            var t = obj.task[i];
+            if (t.shinchoku < 1) {
+              obj.currentTask = t;
+              break;
+            }
+          }
+          if (obj.currentTask != null) {
+            //依存をチェック
+            var dependFinished = true;
+            obj.currentTask.info.depend.forEach((id) => {
+              var t = schedule.getTaskById(id);
+              if (t.shinchoku < 1) dependFinished = false;
+            });
+            if (dependFinished == false){
+              schedule.dependCollided++;
+              obj.currentTask = null;
+            }
+            //半依存をチェック
+            if (obj.currentTask != null && obj.currentTask.shinchoku >= 0.5) {
+              var halfFinished = true;
+              obj.currentTask.info.halfDepend.forEach((id) => {
+                var t = schedule.getTaskById(id);
+                if (t.shinchoku < 1) {
+                  halfFinished = false;
+                }
+              });
+              if (halfFinished == false) {
+                schedule.dependCollided+=0.5;
+                obj.currentTask = null;
+              }
+            }
+          }
+        }
+        if (obj.currentTask == null) return;
+
+        //タスクの実行
+        if (obj.startPoint == -1) obj.startPoint = obj.currentTask.startDate + obj.currentTask.shinchoku * obj.currentTask.info.period;
+        obj.currentTask.oldShinchoku = obj.currentTask.shinchoku;
+        obj.currentTask.shinchoku += currentShinchoku / obj.currentTask.info.period;
+        if (obj.currentTask.shinchoku > 1) obj.currentTask.shinchoku = 1;
+
+        var s = obj.currentTask.shinchoku - obj.currentTask.oldShinchoku;
+        currentShinchoku -= s * obj.currentTask.info.period;
+        //半依存をチェック
+        if (obj.currentTask.shinchoku > 0.5) {
+          var halfFinished = true;
+          obj.currentTask.info.halfDepend.forEach((id) => {
+            var t = schedule.getTaskById(id);
+            if (t.shinchoku < 1) {
+              halfFinished = false;
+            }
+          });
+          if (halfFinished == false) {
+            obj.currentTask.shinchoku = 0.5;
+          }
+        }
+        obj.endPoint = obj.currentTask.startDate + obj.currentTask.shinchoku * obj.currentTask.info.period;
+        if (obj.currentTask.shinchoku >= 1) obj.currentTask = null;
+
+        if (currentShinchoku > 0.01) execTask();
+      };
+      execTask();
+
+    };
+
+    //stepの後に呼び出される
+    obj.getWeekShinchoku = () => {
+      var start, end1, end2;
+      if (obj.startPoint == -1) obj.startPoint = obj.endPoint;
+      start = obj.startPoint;
+      end1 = obj.endPoint;
+      end2 = schedule.date;
+      if (end2 <= start) return 114514;
+
+      return (end1 - start) / (end2 - start);
+    };
+
+    return obj;
+  };
+
+  schedule.getJob = (s) => {
+    if (s == "P") return JOB_PROGRAMMER;
+    if (s == "D") return JOB_DESIGNER;
+    if (s == "M") return JOB_MUSIC_CREATOR;
+    if (s == "L") return JOB_LEVEL_DESIGNER;
+    console.log("Error in getJob()");
+    return -1;
+  };
+
+  schedule.getJobInitial = (j) => {
+    if (j == JOB_PROGRAMMER) return "p";
+    if (j == JOB_DESIGNER) return "d";
+    if (j == JOB_MUSIC_CREATOR) return "m";
+    if (j == JOB_LEVEL_DESIGNER) return "l";
+    console.log("Error in getJobInitial()");
+    return "";
+  }
+
+  function registerMember(jobList) {
+    schedule.memberList = [];
+    var idx  = [];
+    for (var i = 0; i < 5; i++) {
+      idx.push(i);
+    }
+    for (var i = 0; i < 10; i++) {
+      var j = Math.floor(Math.random() * (i % 5));
+      var tmp = idx[i % 5];
+      idx[i%5] = idx[j];
+      idx[j] = tmp;
+    }
+    for (var i = 0; i < jobList.length; i++) {
+      schedule.memberList.push(Member(jobList[i], idx[i]));
+    }
+  }
+
+  schedule.initialize = (jobList) => {
+    console.log("init");
+    schedule.date = 0;
+    schedule.dependCollided = 0;
+    schedule.changeSchedule = 0;
+    schedule.allTask = [];
+    for (var i = 0; i < schedule.allTaskInfo.length; i++) {
+      schedule.allTask[i] = Task(schedule.allTaskInfo[i]);
+    }
+    registerMember(jobList);
+  };
+
+
+  schedule.step = () => {
+    schedule.allEvents = [];
+    for (var i = 0; i < schedule.memberList.length; i++) {
+      schedule.memberList[i].step();
+    }
+    schedule.date++;
+  };
+
+  schedule.loadData = (complete) => {
+    Load("res/TaskInfo.csv", (S) => {
+      var strings = S.split("\n");
+      for (var i = 1; true; i++) {
+        var line = strings[i].split(",");
+        var id = Number(line[0]);
+        var name = line[1];
+        if (name.length == 0) break;
+        var job = schedule.getJob(line[2]);
+        var period = Number(line[3]);
+        var depend = [];
+        if (line[4].length > 0) {
+          var tmp = line[4].split(";");
+          for (var j = 0; j < tmp.length; j++) {
+            if (tmp[j].length > 0)
+              depend.push(Number(tmp[j]));
+          }
+        }
+        var halfDepend = [];
+        if (line[5].length > 0) {
+          tmp = line[5].split(";");
+          for (var j = 0; j < tmp.length; j++) {
+            if (tmp[j].length > 0)
+              halfDepend.push(Number(tmp[j]));
+          }
+        }
+        var explain = line[6];
+        schedule.allTaskInfo.push(TaskInfo(id,name,job,period, depend, halfDepend, explain));
+        schedule.allTaskInfo.sort((a,b) => {
+          if (a.period > b.period) return 1;
+          else if (a.period < b.period) return -1;
+          return 0;
+        });
+      }
+
+      var a = ["f", "l", "r"];
+      var b = ["front", "left", "right"];
+      var c = ["p", "d", "m", "l", "y"];
+      var d = ["Programmer", "Designer", "SoundCreator", "LevelDesigner", "You"];
+      for (var i = 0; i < 5; i++) {
+        for (var j = 0; j < 3; j++) {
+          var name = c[i] + a[j];
+          var path = "res/Characters/" + d[i] + "-" + b[j] + ".png";
+        Picture.load(name, path);
+        }
+      }
+      Picture.load("cursor", "res/cursor.png");
+      Picture.load("slide0", "res/Slide1.png");
+      Picture.load("slide1", "res/Slide2.png");
+      Picture.load("slide2", "res/Slide3.png");
+      Picture.load("kikyo", "res/kikyo.png");
+      Picture.load("twitter", "res/twitter.png");
+      Picture.load("poyashimi", "res/poyashimi.png");
+      Picture.load("book", "res/book.png");
+      Picture.load("mazai", "res/mazai.png");
+      Picture.load("zekki", "res/zekki.png");
+      Picture.load("break", "res/PC-break.png");
+      Music.load("title", "res/sound/BGM_TITLE.mp3");
+      Music.load("sdt", "res/sound/BGM_SDT.mp3");
+      Music.load("stg", "res/sound/BGM_STG.mp3");
+      Music.load("paper", "res/sound/paper.mp3");
+      Music.load("over", "res/sound/cursor.mp3");
+      Music.load("decide", "res/sound/decide.wav");
+      Music.load("move", "res/sound/move.mp3");
+      Music.load("cancel", "res/sound/cancel.mp3");
+      Music.load("event", "res/sound/event.mp3");
+      Music.load("taiko1", "res/sound/taiko1.mp3");
+      Music.load("taiko2", "res/sound/taiko2.mp3");
+
+      Music.setMusicGain(0.2);
+      complete();
+    });
+  };
+
+  schedule.getTaskById = (id) => {
+    for (var i = 0; i < schedule.allTask.length; i++) {
+      if (schedule.allTask[i].info.id == id) return schedule.allTask[i];
+    }
+    return null;
+  };
+
+  return schedule;
+})();

@@ -1,0 +1,60 @@
+#version 330
+layout(triangles) in;
+layout(triangle_strip, max_vertices=8) out;
+
+uniform mat4 mWorld;
+uniform mat4 mViewProj;
+uniform vec3 cameraPos;
+uniform float glowing;
+
+in vec4 p_[3];
+in vec3 rawP_[3];
+in vec3 n_[3];
+in vec2 tc_[3];
+in vec4 screenPos_[3];
+
+out vec4 p;
+out vec3 rawP;
+out vec3 n;
+out vec2 tc;
+out vec4 screenPos;
+out float bulge;
+
+void main() {
+  vec3 nml = -normalize(cross(p_[1].xyz-p_[0].xyz,p_[2].xyz-p_[0].xyz));
+
+  if(glowing < 0.5){
+    for(int i=0; i<3; i++) {
+      gl_Position = gl_in[i].gl_Position;
+      p = p_[i];
+      rawP = rawP_[i];
+      n = n_[i];
+      tc = tc_[i];
+      bulge = 0.;
+      screenPos = screenPos_[i];
+      EmitVertex();
+    }
+    EndPrimitive();
+  }else{
+    if(true){
+      for(int i=0; i<4; i++) {
+        gl_Position = gl_in[i%3].gl_Position;
+        p = p_[i%3];
+        rawP = rawP_[i%3];
+        n = n_[i%3];
+        tc = tc_[i%3];
+        bulge = 1.;
+        screenPos = screenPos_[i%3];
+//        EmitVertex();
+        vec4 rPos = mViewProj * vec4(p_[i%3].xyz+n_[i%3],1) - gl_Position;
+        rPos.xy = normalize(rPos.xy);
+        gl_Position.xy += rPos.xy * 3.;
+        p += vec4(n,0);
+        bulge = 2.;
+        screenPos = gl_Position;//.xy / gl_Position.w / 2. + 0.5;
+ //       EmitVertex();
+      }
+  //    EndPrimitive();
+    }
+  }
+}

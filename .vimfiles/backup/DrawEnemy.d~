@@ -1,0 +1,88 @@
+module enemy.base.DrawEnemy;
+
+import sbylib;
+
+/*
+    drawMat : 描画に必要な定数をまとめてある
+                */
+struct drawMat{
+    vec2[] tc;
+    vec4[] vertices;
+    uint[][] indices;
+    Material mat;
+    TextureObject tex;
+    mat4 pos;
+};
+
+//敵を描画する為のクラス
+class DrawEnemy : Drawable{
+
+    private CustomObject _custom;
+    private drawMat _dmat;
+
+    this(ref drawMat dm){
+
+        _dmat = dm;
+
+        customObjRegister();
+    }
+
+    public void updateVertices(vec4[] vertices){
+        float[] vertexArray;
+        _dmat.vertices = vertices.dup;
+        foreach(v ; vertices){
+            vertexArray ~= v.array;
+        }
+        _custom.update("mVertex",vertexArray);
+    }
+
+    public bool customObjRegister(){
+
+        vec4[] vertex2;
+        vec2[] tc2;
+        with (_dmat){
+            auto len = indices.length;
+            foreach (i; 0..len) {
+                vertex2 ~= vertices[indices[i][0]];
+                vertex2 ~= vertices[indices[i][1]];
+                vertex2 ~= vertices[indices[i][2]];
+                vertex2 ~= vertices[indices[i][2]];
+                vertex2 ~= vertices[indices[i][1]];
+                vertex2 ~= vertices[indices[i][3]];
+            }
+            foreach (i; 0..len) {
+                tc2 ~= tc[0];
+                tc2 ~= tc[1];
+                tc2 ~= tc[2];
+                tc2 ~= tc[2];
+                tc2 ~= tc[1];
+                tc2 ~= tc[3];
+            }
+        }
+
+        writeln(vertex2);
+
+        //カスタムオブジェクトの設定
+        alias conv = reduce!((a,b) => a ~ b.array);
+        _custom = new CustomObject(_dmat.mat, ShaderStore.getShader("NormalGenerate"), Prim.Triangle);
+        _custom.beginMesh;
+        _custom.addAttribute!(4, "mVertex")(conv(cast(float[])[], vertex2), GpuSendFrequency.Static);
+        _custom.addAttribute!(2, "mTexcoord")(conv(cast(float[])[], tc2), GpuSendFrequency.Static);
+        _custom.setIndex(iota(cast(uint)vertex2.length).array, GpuSendFrequency.Static);
+//        _custom.setTexture(_dmat.tex);
+        _custom.addDynamicUniformMatrix!(4, "mWorld")({return _dmat.pos.array;});
+        _custom.addDynamicUniformMatrix!(4, "mViewProj")({return SbyWorld.currentCamera.getViewProjectionMatrix().array;});
+        _custom.endMesh;
+
+        return true;
+    }
+
+
+    override bool draw() in {
+        assert(customAssigned, "Please override draw() when using default constructor.");
+    } body {
+        _custom.draw;
+        return true;
+    }
+
+}

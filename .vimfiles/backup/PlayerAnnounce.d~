@@ -1,0 +1,41 @@
+module PlayerAnnounce;
+
+import sbylib;
+import Player;
+
+struct PlayerInfo {
+	vec3 pos;
+	vec3 vel;
+}
+
+//Playerの動きを外部に知らせるクラスです
+class PlayerAnnouncer : Entity {
+
+	private static PlayerAnnouncer instance;
+	private Player player;
+	private void delegate(PlayerInfo)[] onSteps;
+	
+	public static PlayerAnnouncer getInstance() {
+		if (instance is null) instance = new PlayerAnnouncer;
+		return instance;
+	}
+
+	public static void init(Player player) {
+		getInstance.player = player;
+	}
+
+	void addListener(void delegate(PlayerInfo) onStep) {
+		onSteps ~= onStep;
+	}
+
+	override bool step() {
+		PlayerInfo info;
+		info.pos = player.getPos;
+		onSteps.each!(s => s(info));
+		return true;
+	}
+
+	override string toString() {
+		return "PlayerAnnouncer";
+	}
+}

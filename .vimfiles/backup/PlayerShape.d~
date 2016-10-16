@@ -1,0 +1,15 @@
+module player.PlayerShape;
+
+import std.container;
+import player.PlayerDrawer;
+import collision;
+import player.Player;
+import sbylib;
+
+class PlayerShape {
+  vec3 delegate() getMinPoint;
+  vec3 delegate() getMaxPoint;
+  vec3 delegate() getCameraTarget;
+  void delegate() step;
+  bool delegate(CollisionObject, CollisionObject, Array!CollisionInfo, Array!CollisionInfo) setCollisionInfo;
+}

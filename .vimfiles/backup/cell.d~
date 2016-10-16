@@ -1,0 +1,79 @@
+module collision.cell;
+
+import collision.imports;
+import sbylib.utils.Stack;
+
+class Cell {
+	int depth; // セルの深さ
+	uint key; // モートンコード
+	uint index; //
+	int flg; // すべて0だと空(1bit...自身, 2～9bit...子のセル)
+	CollisionObject latestObj;
+	Stack!CollisionObject staticObjects;
+	Cell parent;
+
+public:
+	this(int depth, uint key, uint index) @nogc {
+		this.depth = depth;
+		this.key = key;
+		this.index = index;
+		this.flg = 0;
+		this.latestObj = null;
+	}
+
+	void add(CollisionObject obj) in {
+		assert(obj !is null);
+		assert(obj.cell is null);
+	} body {
+		if (obj.isStatic) {
+			staticObjects.push(obj);
+		} else {
+			if (latestObj !is null) {
+				obj.nextObj = latestObj;
+				latestObj.preObj = obj;
+			}
+			latestObj = obj;
+			obj.cell = this;
+		
+			flg = flg | 1;
+			Cell c = this;
+			uint temp = (c.index-1)%8+1;
+			while((c = c.parent) !is null && (c.flg&(1<<temp)) == 0) {
+				c.flg = c.flg | (1<<temp);
+				temp = (c.index-1)%8+1;
+			}
+		}
+	}
+
+	void remove(CollisionObject obj) @nogc in {
+		assert(obj !is null);
+		assert(obj.cell is this);
+		assert(!obj.isStatic, "isStaticなCollisionObjectの八分木からの削除を検出");
+	} body {
+		if (obj.preObj !is null) {
+			obj.preObj.nextObj = obj.nextObj;
+		} else {
+			latestObj = obj.nextObj;
+		}
+		if (obj.nextObj !is null) {
+			obj.nextObj.preObj = obj.preObj;
+		}
+		obj.preObj = null;
+		obj.nextObj = null;
+		obj.cell = null;
+
+		if (latestObj is null) {
+			flg = flg & ~1;
+			Cell c = this;
+			uint temp = (c.index-1)%8+1;
+			while (c.flg == 0 && (c = c.parent) !is null) {
+				c.flg = c.flg & ~(1<<temp);
+				temp = (c.index-1)%8+1;
+			}
+		}
+	}
+
+private:
+
+
+}

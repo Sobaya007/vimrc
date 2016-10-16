@@ -1,0 +1,70 @@
+module sbylib.physics3d.GroupedShape;
+
+import sbylib;
+import sbylib.physics3d.Shape.Face;
+
+class GroupedShape : RigidBody3D {
+  private:
+    RigidBody3D[] bodies;
+  public:
+
+    this(RigidBody3D[] bodies, Type type) {
+      this.bodies = bodies;
+      this.type = type;
+      super(new GroupedShape, bodies.map!(a => a.mass).sum, type);
+    }
+
+    private class GroupedShape : Shape {
+      this() {
+        super();
+        this.Position = bodies.map!(a => a.mass * a.shape.Position).sum / mass;
+        this.LinearVelocity = bodies.map!(a => a.mass * a.shape.LinearVelocity).sum / mass;
+      }
+override:
+      float computeVolume() {
+        return bodies.map!(a => a.shape.computeVolume).sum;
+      }
+      mat3 computeInertiaTensor() {
+        mat3 result = mat3(0);
+        foreach (rBody; bodies) {
+          result += rBody.shape.computeInertiaTensor;
+          alias a = rBody.shape.Position;
+          auto m = mat3(
+              a.yz.lengthSq, -a.x*a.y, -a.z*a.x,
+              -a.x*a.y, a.zx.lengthSq, -a.y*a.z,
+              -a.z*a.x, -a.y*a.z, a.xy.lengthSq);
+
+        }
+        return result;
+      }
+      CustomObject createCustomObject() {
+        return null;
+      }
+
+      void draw() {
+        if (visible) {
+          bodies.each!(a => a.draw);
+        }
+      }
+      vec3 getMaxPoint() {
+        return bodies.map!(a => a.shape.getMaxPoint).reduce!((a,b) => maxVector(a,b));
+      }
+      vec3 getMinPoint() {
+        return bodies.map!(a => a.shape.getMinPoint).reduce!((a,b) => minVector(a,b));
+      }
+      void updateCustomObject(CustomObject custom) {
+      }
+      vec3 support(vec3 d) @nogc {
+        vec3 result = -d * 114514;
+        foreach (rBody; bodies) {
+          auto tmp = rBody.shape.support(d);
+          if (result.dot(d) < tmp.dot(d))
+            result = tmp;
+        }
+        return result;
+      }
+      Face supportFace(vec3 d) {
+        return bodies.map!(a => a.shape.supportFace(d)).reduce!((a,b) => a.normal.dot(d) < b.normal.dot(d) ? b : a);
+      }
+    }
+}

@@ -1,0 +1,40 @@
+module enemy.TkgwCrystal;
+
+import enemy.GameAI;
+import sbylib;
+import model;
+
+class TkgwCrystal : GameAI {
+	static{
+		private vec4[] vertices;
+	}
+	private vec3 dir = vec3(0.0,0.0,-0.01);
+	private float range = 5.0;  //射程範囲
+	bool flg = false;
+	Model crys;
+	CustomObject custom;
+
+	this(Material mat = null)  {
+		if(mat is null){
+			mat = new Material;
+		};
+		auto shader = ShaderStore.getShader("NormalShow");
+		crys = new Model("Resource/model/crysmid02.fbx", mat4.translate(vec3(-8,10,6))*mat4.scale(vec3(0.25,0.25,0.25)), mat, shader);
+	}
+	void move(){
+
+	}
+
+	override bool draw() {
+		crys.draw();
+// 		custom.draw();
+		return true;
+	}
+
+	override bool step(){
+		move();
+
+		return true;
+	}
+
+}

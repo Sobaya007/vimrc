@@ -1,0 +1,21 @@
+window.onload = ()=>{
+  Picture.load("buri","/res/buri.jpg");
+  Picture.load("report","/res/Slide-presentation.png");
+  Picture.load("stg-bg","/res/STG/STG-background.png");
+  Picture.load("stg-bul-l","/res/STG/bullet-L.png");
+  Picture.load("stg-bul-m","/res/STG/bullet-M.png");
+  Picture.load("stg-bul-s","/res/STG/bullet-S.png");
+  Picture.load("stg-bul-mine","/res/STG/bullet-Mine.png");
+  Picture.load("stg-myship","/res/STG/MyShip.png");
+  Picture.load("av","/res/STG/av.png");
+  // Poyo.start("canvas",[Stg.STGscene,Main,Sub]);
+  Schedule.loadData(()=>{
+    Poyo.start("canvas",Scenes.get());
+  });
+  var resize = ()=>{
+    document.getElementById("canvas").width = document.getElementById("container").clientWidth;
+    document.getElementById("canvas").height = document.getElementById("container").clientHeight;
+  };
+  resize();
+  window.onresize = resize;
+};

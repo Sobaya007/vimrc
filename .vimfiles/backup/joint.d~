@@ -1,0 +1,23 @@
+module sbylib.physics3d.Joint;
+
+import sbylib;
+
+class Joint {
+
+  protected:
+    RigidBody3D a, b;
+  public:
+
+    this(RigidBody3D a, RigidBody3D b) {
+      this.a = a;
+      this.b = b;
+    }
+
+    protected vec3 getPos(RigidBody3D r, vec3 local) {
+      return r.shape.pos + rotate(local, r.shape.Orientation);
+    }
+
+    abstract void prepareSolve();
+
+    abstract void solve();
+}

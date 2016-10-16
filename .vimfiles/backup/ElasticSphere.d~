@@ -1,0 +1,342 @@
+module player.elastic.ElasticSphere;
+import sbylib;
+import collision;
+import derelict.opengl3.gl;
+import derelict.opengl3.gl3;
+import std.container;
+import player;
+import player.elastic.ContactPair;
+import player.ParticleManager;
+import player.PlayerCollisionObject;
+import player.PlayerCollisionManager;
+import player.PlayerDrawer;
+import player.PlayerShape;
+import player.Input;
+
+class ElasticSphere {
+
+  //===============static=================
+  static{
+    private {
+      vec3[] vertex;
+      uint[][] indices;
+      uint[][] pairIndex;
+      vec3[] distanceList;
+    }
+    static this() {
+      vertex = Sphere.getVertices(recursionLevel);
+      indices = Sphere.getIndices(recursionLevel);
+      alias makePair = (a,b) => a < b ? [a,b] : [b,a];
+      //隣を発見
+      foreach (i; 0..indices.length) {
+        auto idx0 = indices[i][0];
+        auto idx1 = indices[i][1];
+        auto idx2 = indices[i][2];
+
+        if (pairIndex.canFind(makePair(idx0,idx1)) == false) pairIndex ~= makePair(idx0,idx1);
+        if (pairIndex.canFind(makePair(idx1,idx2)) == false) pairIndex ~= makePair(idx1,idx2);
+        if (pairIndex.canFind(makePair(idx2,idx0)) == false) pairIndex ~= makePair(idx2,idx0);
+      }
+      distanceList = new vec3[pairIndex.length];
+    }
+  }
+
+  private Player player;
+
+  //===============描画用変数=====================
+  private vec3[] normalSum;
+  private PlayerDrawer drawer;
+  private CustomObject custom;
+
+  //===============衝突判定用変数=================
+  private Array!ContactPair pairs;
+  private vec3 collisionNormal;
+  private PhysicalSphere physicalSphere;
+  private PlayerCollisionManager colManager;
+  private PlayerShape shape;
+  private RigidBody3D rigidBody;
+
+  //===============ぶにぶに用変数=================
+  ParticleManager pManager;
+  flim pushCount;
+  float upper, lower;
+  float averageRadius = 0.5;
+  float defaultDistance;
+  vec3 gravityPoint;
+  vec3 linearVelocity, angularVelocity;
+
+  this(Player player)  {
+    this.player = player;
+    this.drawer = player.drawer;
+    this.pManager = player.pManager;
+    this.colManager = player.colManager;
+    this.pushCount = flim(0,0,1);
+    this.defaultDistance = averageRadius * 2 * (1 - 1 / sqrt(5.0f)) / (recursionLevel + 1);
+    this.normalSum = new vec3[pManager.particleNum];
+    this.physicalSphere = new PhysicalSphere(1);
+    this.custom = createCustomObject;
+    this.shape = player.shape;
+    this.rigidBody = new RigidBody3D(physicalSphere, RigidBody3D.Type.Static);
+    this.rigidBody.setMass(0.1);
+  }
+
+  void init() {
+    this.gravityPoint = pManager.getParticles.map!(a => a.position).sum / pManager.getParticles.length;
+    this.linearVelocity = pManager.getParticles.map!(a => a.velocity).sum / pManager.getParticles.length;
+    this.angularVelocity = vec3(0);
+    reculculateParticle(gravityPoint);
+
+    drawer.getCustomObject = {return custom;};
+    drawer.nextVertices = &getVertices;
+    drawer.nextNormals = &getNormals;
+
+    colManager.setListener(&onCollision);
+    colManager.setUserData(cast(void*)this);
+
+    colManager.setCollisionShape(physicalSphere);
+
+    shape.step = &step;
+    shape.getMinPoint = &getMinPoint;
+    shape.getMaxPoint = &getMaxPoint;
+    shape.getCameraTarget = &getCameraTarget;
+
+    player.world.add(rigidBody);
+  }
+
+  void step() {
+    auto g = pManager.getParticles.map!(a => a.position).sum / pManager.getParticles.length;
+    this.averageRadius = pManager.getParticles.map!(a => (a.position - g).length).sum / pManager.getParticles.length;
+    this.upper = pManager.getParticles.map!(a => a.position.y).reduce!((a,b) => a < b ? b : a);
+    this.lower = pManager.getParticles.map!(a => a.position.y).reduce!((a,b) => a < b ? a : b);
+    this.linearVelocity = pManager.getParticles.map!(a => a.velocity).sum / pManager.getParticles.length;
+    this.angularVelocity = vec3(0);
+    reculculateParticle(g);
+    this.gravityPoint = g;
+    prepareDistanceList();
+    baloonForce();
+    gravityForce();
+    particleForce();
+    contactForce();
+    pManager.getParticles.each!(p => p.move);
+    colManager.exec();
+
+    if (downButton()) {
+      downPush();
+    } else {
+      pushCount = 0;
+      pManager.getParticles.each!(p => p.extForce = vec3(0));
+    }
+    sidePush();
+
+    physicalUpdate();
+  }
+
+  vec3 support(vec3 vec) {
+    return pManager.getParticles.map!(a => a.position).reduce!((a,b) => a.dot(vec) < b.dot(vec) ? a : b);
+  }
+
+  vec3 getMinPoint() {
+    return pManager.getParticles.map!(a => a.position).reduce!((a,b) => vec3(min(a.x, b.x), min(a.y, b.y), min(a.z, b.z)));
+  }
+
+  vec3 getMaxPoint() {
+    return pManager.getParticles.map!(a => a.position).reduce!((a,b) => vec3(max(a.x, b.x), max(a.y, b.y), max(a.z, b.z)));
+  }
+
+  vec3 getCameraTarget() {
+    return pManager.getParticles.map!(a => a.position).sum / pManager.getParticles.length;
+  }
+
+  private void physicalUpdate() {
+    auto dLinearVelocity = (physicalSphere.LinearVelocity - linearVelocity) * 30;
+    pManager.getParticles.each!(p => p.extForce += dLinearVelocity);
+    physicalSphere.Position = gravityPoint;
+    physicalSphere.LinearVelocity = linearVelocity;
+    physicalSphere.AngularVelocity = linearVelocity;
+    physicalSphere.setRadius(averageRadius);
+  }
+
+  private void reculculateParticle(vec3 g) {
+    vec3 dif = g - gravityPoint;
+    dif.y = 0;
+    vec3 axis = vec3(0,1,0).cross(dif);
+    float len = axis.length;
+    if (len == 0) return;
+    axis /= len;
+    float angle = dif.length / averageRadius;
+    quat rot = quat.createAxisAngle(axis, angle);
+    foreach (p; pManager.getParticles) {
+      p.position = rotate(p.position-g, rot) + g;
+      p.normal = rotate(p.normal, rot);
+    }
+  }
+
+  private void baloonForce() {
+    float volume = iota(faceNum).map!(a => computeSignedVolume!float(gravityPoint, pManager.getParticles[indices[a][0]].position, pManager.getParticles[indices[a][1]].position, pManager.getParticles[indices[a][2]].position)).sum / 6;
+    float area = iota(faceNum).map!(a => computeUnSignedArea!float(pManager.getParticles[indices[a][0]].position, pManager.getParticles[indices[a][1]].position, pManager.getParticles[indices[a][2]].position)).sum / 2;
+    float force = baloon_coefficient * area / (volume * pManager.getParticles.length);
+    foreach (ref p; pManager.getParticles) {
+      p.force += p.normal * force;
+    }
+  }
+
+  private void gravityForce() {
+    foreach (p; pManager.getParticles) {
+      p.force.y -= mass * gravity;
+    }
+  }
+
+  private void prepareDistanceList() {
+    foreach (i; 0..pairIndex.length) {
+      vec3 d = pManager.getParticles[pairIndex[i][1]].position - pManager.getParticles[pairIndex[i][0]].position;
+      auto len = d.length;
+      if (len > 0) d /= len;
+      len -= defaultDistance;
+      d *= len;
+      distanceList[i] = d;
+    }
+  }
+
+  private void particleForce() {
+    bool solveFinished = false;
+    foreach (k; 0..20) {
+      foreach (i; 0..pairIndex.length) {
+        auto id0 = pairIndex[i][0], id1 = pairIndex[i][1];
+        vec3 v1 = pManager.getParticles[id1].velocity - pManager.getParticles[id0].velocity;
+        vec3 v2 = v1 * velocity_coefficient + distanceList[i] * position_coefficient;
+        vec3 dv = (v2 - v1) * 0.5f;
+        pManager.getParticles[id0].velocity -= dv;
+        pManager.getParticles[id1].velocity += dv;
+      }
+      solveFinished = true;
+      foreach (ref pair; pairs) {
+        pair.solve;
+        solveFinished &= pair.finished;
+      }
+    }
+  }
+
+  private void contactForce() {
+    pairs.clear();
+  }
+
+  private void onCollision(std.container.Array!CollisionInfo collisionInfo) {
+    collisionNormal = vec3(0);
+    auto floors = collisionInfo.array.filter!(a => a.normal.y > 0.5 && cast(Tripolygon)a.object !is null)
+      .map!(a => cast(Tripolygon)a.object); //floorsは法線がある程度上向きの三角ポリゴン
+    pairs.clear();
+    foreach (info; collisionInfo) {
+      foreach (p; pManager.getParticles) {
+        if (info.normal.dot(p.position - (info.vertex + info.normal * info.distance)) >= 0) continue;
+        if (cast(Tripolygon)info.object) {
+          auto poly = cast(Tripolygon)info.object;
+          int sign = 0;
+          bool exitFlag = false;
+          foreach (i; 0..poly.vertices.length) {
+            auto v = poly.vertices[(i+1)%$] - poly.vertices[i];
+            auto v2 = p.position - poly.vertices[i];
+            alias sig = a => a > 0 ? 1 : (a < 0 ? -1 : 0);
+            if (sign == 0) sign = sig(dot(v, v2));
+            else {
+              if (sign * dot(v,v2) < 0) {
+                exitFlag = true;
+                break;
+              }
+            }
+          }
+          //          if (exitFlag) continue;
+        }
+        pairs ~= ContactPair(info, p);
+        p.isGround = true;
+      }
+      collisionNormal += info.normal;
+    }
+    collisionNormal /= colManager.getInfo.length;
+  }
+
+  private void downPush() {
+    auto g = gravityPoint;
+    pushCount += 0.1;
+    if (pushCount < pushCount.upper) {
+      foreach (p; pManager.getParticles) {
+        float len = length(p.position.xz - g.xz);
+        float powerMax = down_push_force;
+        powerMax /= pow(len + 0.6, 2.5);
+        powerMax *= (p.position.y - lower) / (upper - lower);
+        powerMax = min(800, powerMax);
+        p.extForce = -powerMax * pushCount * vec3(0,1,0);
+      }
+    } else {
+      pManager.getParticles.each!(p => p.extForce = vec3(0));
+    }
+  }
+
+  private void sidePush() {
+    vec3 force = vec3(0,0,0);
+    with (SbyWorld) {
+      auto vecX = currentCamera.getVecX;
+      auto vecZ = currentCamera.getVecZ;
+      vecX.y = 0;
+      vecZ.y = 0;
+      vecX = vecX.normalize;
+      vecZ = vecZ.normalize;
+
+      if (leftButton())    force -= vecX;
+      if (rightButton())   force += vecX;
+      if (forwardButton()) force -= vecZ;
+      if (backButton())    force += vecZ;
+      force -= vecX * joyStick().getAxis(JoyStick.Axis.LeftX);
+      force += vecZ * joyStick().getAxis(JoyStick.Axis.LeftY);
+      if (force.length > 0) force = normalize(force) * side_push_force;
+    }
+    int groundCount = cast(int)pManager.getParticles.count!(p => p.isGround);
+    force *= .3 * (groundCount+20) / pManager.getParticles.length;
+    pManager.getParticles.each!(p => p.extForce += force);
+  }
+
+  private CustomObject createCustomObject() {
+    auto mat = new Material;
+    mat.withMaterial = (custom, rc, u) {
+      rc.defaulting();
+      u();
+    };
+    auto custom = new CustomObject(mat, ShaderStore.getShader("Sphere"), Prim.Triangle);
+    custom.beginMesh;
+    custom.addAttribute!(3, "mVertex")(reduce!((a,b) => a ~ b.array)(cast(float[])[], vertex).array, GpuSendFrequency.Stream);
+    custom.addAttribute!(3, "mNormal")(reduce!((a,b) => a ~ b.normalize.array)(cast(float[])[], vertex).array, GpuSendFrequency.Stream);
+    custom.setIndex(indices.map!(faceIndex => iota(1,faceIndex.length-1).map!(idx => [faceIndex[0], faceIndex[idx], faceIndex[idx+1]]).reduce!((a,b) =>a ~ b)).reduce!((a,b) =>a ~ b), GpuSendFrequency.Static);
+    custom.setUniform!(3, "lightPos")([0, 20, 0]);
+    custom.setUniformMatrix!(4,"mWorld")(mat4.identity.array);
+    custom.setUniform!(1, "glowing")([0]);
+    custom.addDynamicUniformMatrix!(4, "mViewProj")({return SbyWorld.currentCamera.getViewProjectionMatrix.array;});
+    custom.addDynamicUniform!(3, "cameraPos")({return SbyWorld.currentCamera.getPos.array;});
+    custom.endMesh();
+    return custom;
+  }
+
+  private void getVertices(vec3[] vertices) {
+    foreach (i, ref p; pManager.getParticles) {
+      vertices[i] = p.position;
+    }
+  }
+
+  private void getNormals(vec3[] normals) {
+    // Recalculate the normal for Graphics
+    foreach (ref n;normalSum) n = vec3(0);
+    foreach (i; 0..indices.length) {
+      int i0 = indices[i][0];
+      int i1 = indices[i][1];
+      int i2 = indices[i][2];
+      vec3 v01 = pManager.getParticles[i1].position - pManager.getParticles[i0].position;
+      vec3 v02 = pManager.getParticles[i2].position - pManager.getParticles[i0].position;
+      vec3 n = normalize(cross(v01, v02));
+      normalSum[i0] += n;
+      normalSum[i1] += n;
+      normalSum[i2] += n;
+    }
+    foreach (i, ref n; normalSum) {
+      normals[i] = n.normalize;
+    }
+  }
+
+}

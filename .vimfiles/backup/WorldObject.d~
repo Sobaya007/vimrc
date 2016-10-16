@@ -1,0 +1,33 @@
+module sbylib.entity.WorldObject;
+
+import sbylib;
+
+/*
+位置と姿勢を持った3次元上の物体です。
+*/
+
+class WorldObject {
+
+	private {
+		vec3 _pos = vec3(0);
+		quat _orientation = quat(0, 0, 0, 0);
+	}
+
+	@property {
+		void pos(vec3 p) {
+			_pos = p;
+		}
+
+		void orientation(quat o) {
+			_orientation = o;
+		}
+	}
+
+	vec3 getPos() @nogc @property{
+		return _pos;
+	}
+
+	quat getOrientation() @nogc @property {
+		return _orientation;
+	}
+}

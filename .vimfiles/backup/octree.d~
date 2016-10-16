@@ -1,0 +1,322 @@
+module collision.octree;
+
+import collision.imports;
+import sbylib.utils.Stack;
+static import sbylib.physics3d.Narrow;
+
+/+
+
+Octree octree = new Octree(origin, size); // 生成(ルートノードの原点と大きさを指定) (vec3 origin, vec3 size)
+
+octree.add(obj); // オブジェクトの追加 (CollisionObject obj)
+octree.remove(obj); // オブジェクトの除去 (CollisionObject obj)
+
+{ // 毎フレーム処理
+  octree.testAllCollisions(); // 登録されている全オブジェクトの衝突判定
+}
+
++/
+
+class Octree {
+
+  private:
+    int _maxDepth;
+    vec3 _origin; // 原点の座標
+    vec3 _size; // ルートノードの大きさ
+    Cell[] _cells;
+
+    Stack!CollisionObject _colVect; // 衝突リスト
+    Stack!CollisionObject _colStac; // 衝突スタック
+    Stack!CollisionObject _colStaticStac; // isStaticな衝突オブジェクトのスタック
+
+  public:
+    vec3 origin() {return _origin;} // debug
+    vec3 size() {return _size;} // debug
+
+    this(vec3 minimum, vec3 maximum, int maxDepth = 6) {
+      _origin = minimum;
+      _size = maximum-minimum;
+      _maxDepth = maxDepth;
+      _cells = new Cell[(8^^(_maxDepth+1)-1)/7];
+      int i=0;
+      foreach(depth; 0.._maxDepth+1) {
+        for(uint key=0; key<8^^depth; key++, i++) {
+          _cells[i] = new Cell(depth, key, i);
+          _cells[i].parent = i==0 ? null:_cells[(i-1)>>3];
+        }
+      }
+      _colVect.allocate(10000);
+      _colStac.allocate(10000);
+      _colStaticStac.allocate(10000);
+    }
+
+    void add(CollisionObject[] objects...) {
+      foreach(obj; objects) {
+        assert(obj.listener !is null);
+        uint minMortonCode = getMortonCode(obj.getMin);
+        uint maxMortonCode = getMortonCode(obj.getMax);
+        uint temp = minMortonCode ^ maxMortonCode;
+        int depth = 0;
+        for(; depth<_maxDepth && ((temp>>((_maxDepth-depth-1)*3))&7)==0; depth++) {}
+        uint index = getIndex(depth, minMortonCode >> ((_maxDepth-depth)*3));
+        _cells[index].add(obj);
+        //writeln("min: ", obj.getMin);
+        //writeln("max: ", obj.getMax);
+        //writeln("depth: ", depth);
+        //writeln("a: ", (minMortonCode >> ((i+1)%(_maxDepth+1)*3)).to!string(8));
+      }
+    }
+
+    void remove(CollisionObject obj) @nogc in {
+      assert(obj.cell !is null);
+    } body {
+      obj.cell.remove(obj);
+    }
+
+    void testAllCollisions() {
+      //import std.datetime; //
+      //StopWatch sw;//
+      //sw.start;//
+      setAllCollisionList();
+      //int j=0;//
+      //foreach(a;_colVect) j++;//
+      //j.writeln;//
+      int i=0;
+      CollisionObject obj1;
+      foreach(obj2; _colVect) {
+        if (i%2==0) {
+          obj1 = obj2;
+        } else {
+          Array!CollisionInfo info1, info2;
+          if (testCollision(obj1, obj2, info1, info2)) {
+            //writeln("hit!!!");
+            //info1.front.normal.writeln;
+            //info1.front.distance.writeln;
+            obj1.collisionInfo ~= info1;
+            obj2.collisionInfo ~= info2;
+          }
+        }
+        i++;
+      }
+      //i.writeln;
+      //sw.stop;//
+      //writeln(sw.peek().msecs, "ms");//
+    }
+
+    // debug用
+    void draw() {
+      Vector!(bool, 3) flg = Vector!(bool, 3)(true, true, true); // 描画する軸を指定
+      int num = 2^^_maxDepth; 
+      //num = 2^^2;// 描画が遅いので粗く描画
+      foreach(float i; 0..num+1) foreach(float j; 0..num+1) {
+        vec3 v1 = _size*i/num + _origin;
+        vec3 v2 = _size*j/num + _origin;
+        if (flg.x) drawLine(vec3(_origin.x, v1.y, v2.z), vec3(_origin.x+_size.x, v1.y, v2.z));
+        if (flg.y) drawLine(vec3(v2.x, _origin.y, v1.z), vec3(v2.x, _origin.y+_size.y, v1.z));
+        if (flg.z) drawLine(vec3(v1.x, v2.y, _origin.z), vec3(v1.x, v2.y, _origin.z+_size.z));
+      }
+      //count.writeln;
+    }
+
+  private:
+
+    uint getMortonCode(vec3 r) @nogc in {
+      // オブジェクトがルートノード内にあるかをチェック
+      //      assert(r.x-_origin.x >= 0);
+      //      assert(r.x-_origin.x<_size.x);
+      //      assert(r.y-_origin.y >= 0);
+      //      assert(r.y-_origin.y<_size.y);
+      //      assert(r.z-_origin.z >= 0);
+      //      assert(r.z-_origin.z<_size.z);
+    } body {
+      r -= _origin;
+      uint x = cast(uint)(r.x*(1<<_maxDepth)/_size.x);
+      uint y = cast(uint)(r.y*(1<<_maxDepth)/_size.y);
+      uint z = cast(uint)(r.z*(1<<_maxDepth)/_size.z);
+      return (separateBit(x) | separateBit(y)<<1 | separateBit(z)<<2);
+    }
+
+    // 入力のうち低い方の10bitを2bitおきに分離する
+    uint separateBit(uint n) @nogc {
+      n = (n|(n<<16)) & 0xff0000ff;
+      n = (n|(n<< 8)) & 0x0f00f00f;
+      n = (n|(n<< 4)) & 0xc30c30c3;
+      n = (n|(n<< 2)) & 0x49249249;
+      return n;
+    }
+
+    // 衝突判定リストの作成
+    void setAllCollisionList() {
+      _colVect.clear;
+      _colStac.clear;
+      _colStaticStac.clear;
+
+      setCollisionList(0);
+    }
+    void setCollisionList(uint index) {
+      // isStaticなオブジェクトをスタックに追加
+      int staticObjNum = 0;
+      foreach(obj; _cells[index].staticObjects) {
+        _colStaticStac.insertBack(obj);
+        staticObjNum++;
+      }
+
+      CollisionObject obj1 = _cells[index].latestObj;
+      while(obj1) {
+        // isStaticなオブジェクトとの衝突リストの作成
+        foreach(obj2; _colStaticStac) {
+          _colVect.insertBack(obj1);
+          _colVect.insertBack(obj2);
+        }
+        // 衝突スタックとの衝突リスト作成
+        foreach(obj2; _colStac) {
+          if (obj1.userData != obj2.userData) {
+            _colVect.insertBack(obj1);
+            _colVect.insertBack(obj2);
+          }
+        }
+        // 空間内のオブジェクト同士の衝突リストの作成
+        CollisionObject obj2 = obj1.nextObj;
+        while(obj2) {
+          if (obj1.userData != obj2.userData) {
+            _colVect.insertBack(obj1);
+            _colVect.insertBack(obj2);
+          }
+          obj2 = obj2.nextObj;
+        }
+        obj1 = obj1.nextObj;
+      }
+
+      bool childFlag = false;
+      // 小空間に移動
+      int objNum = 0;
+      foreach(i; 0..8) {
+        uint nextIndex = (index<<3)+1+i;
+        if (nextIndex<_cells.length && _cells[nextIndex].flg != 0) {
+          if (!childFlag) {
+            // 登録オブジェクトをスタックに追加
+            CollisionObject obj = _cells[index].latestObj;
+            while(obj) {
+              _colStac.insertBack(obj);
+              objNum++;
+              obj = obj.nextObj;
+            }
+          }
+          childFlag = true;
+          setCollisionList(nextIndex); // 小空間へ
+        }
+      }
+
+      // スタックからオブジェクトを外す
+      if (childFlag) {
+        foreach(i; 0..objNum) {
+          _colStac.removeBack();
+        }
+      }
+      foreach(i; 0..staticObjNum) {
+        _colStaticStac.removeBack();
+      }
+    }
+
+    // narrow phase
+    // 衝突している場合にはtrueを返す
+<<<<<<< HEAD
+    // infoArray1, info2 に衝突情報を加える
+    // あとで衝突応答した後に使用した衝突情報の消し忘れに注意！！
+    bool testCollision(CollisionObject obj1, CollisionObject obj2, out Array!CollisionInfo infoArray1, out Array!CollisionInfo infoArray2) {
+=======
+    // info1, info2 に衝突情報を加える
+    // あとで衝突応答した後に使用した衝突情報の消し忘れに注意！！
+    bool testCollision(CollisionObject obj1, CollisionObject obj2, out Array!CollisionInfo info1, out Array!CollisionInfo info2) {
+>>>>>>> crystal_fix
+      // AABB同士の判定
+      if (obj1.getMax.x<obj2.getMin.x || obj1.getMin.x>obj2.getMax.x) return false;
+      if (obj1.getMax.y<obj2.getMin.y || obj1.getMin.y>obj2.getMax.y) return false;
+      if (obj1.getMax.z<obj2.getMin.z || obj1.getMin.z>obj2.getMax.z) return false;
+<<<<<<< HEAD
+      infoArray1.clear();
+      infoArray2.clear();
+
+      if (obj1.getOrder > obj2.getOrder) {
+        swap(obj1, obj2);
+        swap(infoArray1, infoArray2);
+      }
+
+      if (obj1.setCollisionInfo(obj2, infoArray1, infoArray2)) {
+        return true;
+      }
+=======
+
+
+      vec3 pushVec;
+      vec3[] collisionPoints;
+      info1.clear();
+      info2.clear();
+
+      if (matchType!(PlayerCollisionObject, Tripolygon)(obj1, obj2)) {
+        if( sbylib.physics3d.Narrow.EPA(obj1.shape, obj2.shape, pushVec, collisionPoints)) {
+          foreach (point; collisionPoints) {
+            info1 ~= CollisionInfo();
+            with(info1.back) {
+              object = obj2;
+              distance = pushVec.length;
+              normal = pushVec / distance;
+              vertex = point;
+            }
+            info2 ~= CollisionInfo();
+            with(info2.back) {
+              object = obj1;
+              distance = pushVec.length;
+              normal = pushVec / distance;
+              vertex = point;
+            }
+          }
+          return true;
+        }
+      }
+      // playerとcapsuleとの衝突
+      else if (matchType!(PlayerCollisionObject, CollisionCapsule)(obj1, obj2)) {
+        auto sphere = (cast(PlayerCollisionObject)obj1).player.physicalSphere;
+        auto capsule = cast(sbylib.physics3d.PhysicalCapsule.PhysicalCapsule)obj2.shape;
+        if (sbylib.physics3d.Narrow.collisionSphereCapsule(sphere, capsule, pushVec)) {
+          pushVec = -pushVec;
+          auto point = (cast(PlayerCollisionObject)obj1).player.elasticSphere.particleList.map!(a => a.p).reduce!((a,b) => a.dot(pushVec) < b.dot(pushVec) ? a : b);
+          info1 ~= CollisionInfo();
+          with(info1.back) {
+            object = obj2;
+            distance = pushVec.length;
+            normal = pushVec / distance;
+            vertex = point;
+          }
+          info2 ~= CollisionInfo();
+          with(info2.back) {
+            object = obj1;
+            distance = pushVec.length;
+            normal = pushVec / distance;
+            vertex = point;
+          }
+          return true;
+        }
+      }
+
+>>>>>>> crystal_fix
+      return false;
+    }
+
+    bool matchType(T1, T2)(ref CollisionObject obj1, ref CollisionObject obj2) @nogc
+      if (isImplicitlyConvertible!(T1, CollisionObject) && isImplicitlyConvertible!(T2, CollisionObject)) {
+        if (cast(T1)obj1 && cast(T2)obj2) {
+          return true;
+        } else if (cast(T1)obj2 && cast(T2)obj1) {
+          swap(obj1, obj2);
+          return true;
+        }
+        return false;
+      }
+
+    int getIndex(int depth, uint key) @nogc {
+      return (8^^depth-1)/7+key;
+    }
+
+
+}

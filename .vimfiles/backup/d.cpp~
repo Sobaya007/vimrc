@@ -1,0 +1,70 @@
+#define _CRT_SECURE_NO_WARNINGS
+#define _USE_MATH_DEFINES
+ 
+#include <bits/stdc++.h>
+using namespace std;
+using i32 = int32_t;  using i64 = int64_t;  using str = string;
+using u32 = uint32_t; using u64 = uint64_t; using usize = size_t;
+using f64 = double_t; template <typename T> using vec = vector<T>;
+#define times(n, i) for (i64 i = 0; i < (n); i++)
+#define range(n, m, i) for (i64 i = (n); i < (m); i++)
+#define upto(n, m, i) for (i64 i = (n); i <= (m); i++)
+#define downto(n, m, i) for (i64 i = (n); i >= (m); i--)
+#define foreach(xs, x) for (auto &x : (xs))
+#define all(xs) (xs).begin(), (xs).end()
+#define sortall(xs) sort(all(xs))
+#define reverseall(xs) reverse(all(xs))
+#define uniqueall(xs) (xs).erase(unique(all(xs)), (xs).end())
+#define bisect(xs, x) binary_search(all(xs), x)
+#define index(xs, x) (distance((xs).begin(), find(all(xs), x)))
+#define maximum(xs) (*max_element(all(xs)))
+#define minimum(xs) (*min_element(all(xs)))
+#define sum(xs) accumulate(all(xs), 0)
+#define append(xs, x) (xs).emplace_back(x)
+#define add(xs, x) (xs).insert(x)
+#define shift(xs) (xs).erase((xs).begin()) 
+#define even(x) (((x) & 1) == 0)
+#define odd(x) (((x) & 1) == 1)
+#define readall(xs) { times((xs).size(), i) cin >> xs[i]; }
+const i64 MOD = 1000000007;
+ 
+i32 h, w, r, c, a, b;
+ 
+i32 dp[1000][1000];
+void makedp(i32 n) {
+    times(n+1, i) {
+        times(i+1, j) {
+            if (j == 0 || j == i)
+                dp[i][j] = 1;
+            else
+                dp[i][j] = (dp[i-1][j-1] + dp[i-1][j]) % MOD;
+        }
+    }
+}
+ 
+i64 combine(i32 n, i32 k) {
+    if ((k < 0) || (n < k))
+        return 0;
+    return dp[n][k];
+}
+ 
+i64 pt(i32 x, i32 y) {
+    if (x <= 0 || y <= 0)
+        return 0;
+    return combine(x*y, a+b) * combine(a+b, a) % MOD;
+}
+ 
+i32 main()
+{
+    cin >> h >> w >> r >> c >> a >> b;
+    makedp(r*c);
+ 
+    i64 s = pt(r,c);
+    i64 s1 = (pt(r-1,c)*2 + pt(r,c-1)*2) % MOD;
+    i64 s2 = (pt(r-1,c-1)*4 + pt(r-2,c) + pt(r,c-2)) % MOD;
+    i64 s3 = (pt(r-2, c-1)*2 + pt(r-1, c-2)*2) % MOD;
+    i64 s4 = pt(r-2, c-2);
+ 
+    cout << ((h-r+1) * (w-c+1) * ((s - s1 + s2 - s3 + s4 + MOD*10) % MOD)) % MOD << endl;
+    return 0;
+}

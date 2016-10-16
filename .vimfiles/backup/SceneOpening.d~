@@ -1,0 +1,20 @@
+module scene.SceneOpening;
+
+import scene.imports;
+
+class SceneOpening : SceneBase {
+	mixin singleton!();
+
+	private this() {
+
+	}
+
+	override void init() {
+		writeln("init SceneOpening");
+	}
+
+	override Scene update() {
+
+		return null;
+	}
+}

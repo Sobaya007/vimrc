@@ -1,0 +1,173 @@
+module sbylib.physics3d.RigidBody3D;
+
+import sbylib;
+
+/*
+   剛体を表すクラス
+   密度は一定とする
+   反発係数は0.5
+   摩擦係数は0.5
+   質量は、動く物体なら1,そうでないなら∞
+   形状は凸多角形とする(そうじゃないと死ぬ)
+   頂点情報は時計回り(逆でもいい)に整列しているとする
+   同じ法線を持つ面は存在しないとする
+ */
+class RigidBody3D {
+
+  enum Type {Static, Dynamic} //動くものか否か
+package:
+  float restitution; //反発係数
+  float friction; //摩擦係数
+  float mass; //質量
+  mat3 inertiaTensor; //重心周りの慣性テンソル
+  Type type;
+
+  //本質ではない情報
+  float massInv;
+  mat3 inertiaInv;
+  mat3 worldInertiaInv;
+  public:
+  Shape shape; //形状情報
+
+  this(Shape shape, Type type) {
+<<<<<<< HEAD
+    this(shape, 1, type);
+  }
+
+  this(Shape shape, float mass, Type type) {
+    //各値を初期化
+    this.restitution = 0.5;
+    this.friction = 0.5;
+    this.type = type;
+    this.shape = shape;
+
+    if (type == Type.Dynamic) {
+      this.mass = mass;
+      this.massInv = 1 / mass;
+      this.inertiaTensor = shape.InertiaTensor * mass;
+      this.inertiaInv = mat3.invert(inertiaTensor);
+    } else {
+      this.mass = float.infinity;
+      this.massInv = 0;
+      this.inertiaTensor = shape.InertiaTensor * mass;
+      this.inertiaInv = mat3(0);
+    }
+    auto R = shape.Orientation.toMatrix3;
+    worldInertiaInv = mat3.transpose(R) * inertiaInv * R;
+  }
+
+  @nogc vec3 getVelocity(vec3 p) {
+    return shape.LinearVelocity + cross(shape.AngularVelocity, p - shape.Position);
+  }
+
+  @nogc bool broadCollision(RigidBody3D r) {
+    foreach (i; 0..3) {
+      if (r.shape.getUpper[i] < shape.getLower[i]) return false;
+      if (r.shape.getLower[i] > shape.getUpper[i]) return false;
+    }
+    return true;
+  }
+
+  void draw() {
+    shape.draw();
+  }
+
+  void step(PhysicsWorld3D world) {
+    if (type == Type.Dynamic) {
+      shape.step(world);
+      auto R = shape.Orientation.toMatrix3;
+      worldInertiaInv = mat3.transpose(R) * inertiaInv * R;
+    }
+    shape.update;
+  }
+
+  void setRestitution(float r) {
+    this.restitution = r;
+  }
+
+  void setFriction(float f) {
+    this.friction = f;
+  }
+
+  void setMass(float m) {
+    inertiaTensor *= m / mass;
+    inertiaInv *= mass / m;
+    this.mass = m;
+    this.massInv = 1 / m;
+  }
+
+=======
+    //各値を初期化
+    this.restitution = 0.5;
+    this.friction = 0.5;
+    this.type = type;
+    this.shape = shape;
+
+    if (type == Type.Dynamic) {
+      this.mass = 1;
+      this.massInv = 1 / mass;
+      this.inertiaTensor = shape.getInertiaTensor * mass;
+      this.inertiaInv = mat3.invert(inertiaTensor);
+    } else {
+      this.mass = 1;
+      this.massInv = 0;
+      this.inertiaTensor = shape.getInertiaTensor * mass;
+      this.inertiaInv = mat3(0);
+    }
+    auto R = shape.orientation.toMatrix3;
+    worldInertiaInv = mat3.transpose(R) * inertiaInv * R;
+  }
+
+  @nogc vec3 getVelocity(vec3 p) {
+    return shape.lVel + cross(shape.aVel, p - shape.pos);
+  }
+
+  @nogc bool broadCollision(RigidBody3D r) {
+    foreach (i; 0..3) {
+      if (r.shape.getUpper[i] < shape.getLower[i]) return false;
+      if (r.shape.getLower[i] > shape.getUpper[i]) return false;
+    }
+    return true;
+  }
+
+  void draw() {
+    shape.draw();
+  }
+
+  void step(PhysicsWorld3D world) {
+    if (type == Type.Dynamic) {
+      shape.step(world);
+      auto R = shape.orientation.toMatrix3;
+      worldInertiaInv = mat3.transpose(R) * inertiaInv * R;
+    }
+  }
+
+  void setRestitution(float r) {
+    this.restitution = r;
+  }
+
+  void setFriction(float f) {
+    this.friction = f;
+  }
+
+  void setMass(float m) {
+    inertiaTensor *= m / mass;
+    inertiaInv *= mass / m;
+    this.mass = m;
+    this.massInv = 1 / m;
+  }
+
+>>>>>>> crystal_fix
+  void setType(RigidBody3D.Type type) {
+    if (type == RigidBody3D.Type.Static) {
+      this.massInv = 0;
+      this.inertiaInv = mat3(0);
+    } else if (type == RigidBody3D.Type.Dynamic) {
+      if (this.type == RigidBody3D.Type.Static) {
+        this.massInv = 1 / mass;
+        this.inertiaInv = mat3.invert(this.inertiaTensor);
+      }
+    }
+    this.type = type;
+  }
+}

@@ -1,0 +1,166 @@
+import std.stdio;
+import sbylib;
+
+CustomObject drawRectCustom;
+
+void main()
+{
+
+  SbyWorld.init(1000);
+
+  auto m = new Material;
+  m.withMaterial = (c, rc, u) {
+    rc.defaulting();
+    rc.cullFace(false);
+    u();
+  };
+  drawRectCustom = new CustomObject(m, new ShaderProgram(
+        "#version 330
+      in vec2 mVertex;
+
+      void main() {
+      gl_Position = vec4(mVertex, 0, 1);
+      }
+      ",
+      "#version 330
+      uniform vec4 color;
+      out vec4 FragColor;
+      void main() {
+        FragColor = color;
+      }", ShaderProgram.InputType.SourceCode), Prim.Triangle);
+
+  drawRectCustom.beginMesh;
+  drawRectCustom.addAttribute!(2, "mVertex")([0,0,0,0,0,0,0,0], GpuSendFrequency.Stream);
+  drawRectCustom.setIndex([0,1,2, 0,2,3], GpuSendFrequency.Static);
+  drawRectCustom.endMesh();
+
+  CustomObject custom = new CustomObject(m,
+      new ShaderProgram(
+        "#version 330
+      in vec2 mVertex;
+      out vec2 tc;
+
+      void main() {
+      gl_Position = vec4(mVertex, 0, 1);
+      tc = (mVertex.xy + 1) / 2;
+      }
+      ",
+      "#version 330
+      uniform sampler2D mTexture;
+      uniform float uw;
+      uniform float uh;
+      in vec2 tc;
+      uniform float flag;
+      out vec4 FragColor;
+      void main() {
+        if (flag < 0.5) { //texture to screen
+          FragColor.r = texture(mTexture, tc).r;
+          FragColor.g = 0;
+          FragColor.b = 0;
+          FragColor.a = 1;
+        } else if (flag < 1.5) { //life game
+          float x = tc.x;
+          float y = tc.y;
+          int count = 0;
+          if (texture(mTexture, vec2(x-uw, y-uh)).r > 0.5) count++;
+          if (texture(mTexture, vec2(x, y-uh)).r > 0.5) count++;
+          if (texture(mTexture, vec2(x+uw, y-uh)).r > 0.5) count++;
+          if (texture(mTexture, vec2(x+uw, y)).r > 0.5) count++;
+          if (texture(mTexture, vec2(x+uw, y+uh)).r > 0.5) count++;
+          if (texture(mTexture, vec2(x, y+uh)).r > 0.5) count++;
+          if (texture(mTexture, vec2(x-uw, y+uh)).r > 0.5) count++;
+          if (texture(mTexture, vec2(x-uw, y)).r > 0.5) count++;
+
+          if (texture(mTexture, vec2(x, y)).r > 0.5) {
+            if (2 <= count && count <= 3) FragColor.r = 1.0;
+            else FragColor.r = 0;
+          } else {
+            if (count == 3) FragColor.r = 1.0;
+            else FragColor.r = 0;
+          }
+        } else { //init
+          if (texture(mTexture, tc).b > 0.5) FragColor = vec4(1,1,1,1);
+          else FragColor = vec4(0,0,0,1);
+        }
+      }
+      ", ShaderProgram.InputType.SourceCode), Prim.Triangle);
+  auto window = SbyWorld.currentWindow;
+  custom.beginMesh;
+  custom.addAttribute!(2, "mVertex")([-1,1, 1,1, 1,-1, -1,-1], GpuSendFrequency.Static);
+  custom.setIndex([0,1,2, 0,2,3], GpuSendFrequency.Static);
+  custom.endMesh();
+
+  auto drawManager = DrawManager.getInstance;
+
+  clearColor(black);
+  drawManager.add({
+      clearStencil(0);
+
+      clear(ClearMode.Color, ClearMode.Depth, ClearMode.Stencil);
+      return true;
+  }, 0);
+
+
+  enum width = 256, height = 256;
+  auto tex = new TextureObject(width, height, ImageType.RGBA);
+  auto tex2 = new TextureObject(width, height, ImageType.RGBA);
+  tex.bind;
+  tex.setMagFilter(TextureObject.TexFilterType.Nearest);
+  tex.unBind;
+  tex2.bind;
+  tex2.setMagFilter(TextureObject.TexFilterType.Nearest);
+  tex2.unBind;
+  auto fbo = new FrameBufferObject;
+
+  bool flag = true;
+
+  fbo.attachTextureAsColor(tex2);
+  custom.setUniform!(1, "flag")(2);
+  custom.setUniform!(1, "uw")(1.0f / width);
+  custom.setUniform!(1, "uh")(1.0f / height);
+  custom.setTexture(new TextureObject("810.jpg"));
+  fbo.write(width, height, {
+      clear(ClearMode.Color);
+      custom.draw;
+  });
+  fbo.attachTextureAsColor(tex);
+  fbo.write(width, height, {
+      clear(ClearMode.Color);
+  });
+
+  drawManager.add({
+      flag = !flag;
+      TextureObject src, dst;
+      if (flag) {
+        src = tex;
+        dst = tex2;
+      } else {
+        src = tex2;
+        dst = tex;
+      }
+      fbo.attachTextureAsColor(dst);
+      custom.setTexture(src);
+      custom.setUniform!(1, "flag")(1);
+      fbo.write(width, height, {
+          clearColor(black);
+          clear(ClearMode.Color);
+          custom.draw();
+      });
+      custom.setUniform!(1, "flag")(0);
+      custom.draw();
+      return true;
+  });
+  drawManager.add({
+     // drawRect(0,0,0.9, 0.9);
+      return true;
+  });
+
+  SbyWorld.mainLoop;
+}
+
+
+void drawRect(float x, float y, float w, float h, vec4 color = white) {
+  drawRectCustom.update("mVertex", [x,y+h, x+w,y+h, x+w,y, x,y]);
+  drawRectCustom.setUniform!(4, "color")(color.array);
+  drawRectCustom.draw;
+}

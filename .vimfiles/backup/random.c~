@@ -1,0 +1,70 @@
+/* 課題名
+ * j50360
+ * 柿沼　建太郎 */
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+
+typedef struct {
+  int x, y;
+} Point;
+
+int dist(Point *p1, Point *p2) {
+  int dx = p1->x - p2->x;
+  int dy = p1->y - p2->y;
+  return round(sqrt(dx*dx+dy*dy));
+}
+
+Point **tmp;
+Point** randomShuffle(int n, Point *points[]) {
+  int i;
+  for (i=0; i<n; i++) {
+    tmp[i] = points[i];
+  }
+  for (i=0; i<n; i++) {
+    int r = rand() % n;
+    int r2 = rand() % n;
+    Point *t = tmp[r];
+    tmp[r] = points[r2];
+    points[r2] = t;
+  }
+  return tmp;
+}
+
+int getResult(int n, Point *points[]) {
+  points = randomShuffle(n, points);
+  int i;
+  int result = 0;
+  for (i=0; i<n; i++) {
+    result += dist(points[i], points[(i+1)%n]);
+  }
+  return result;
+}
+
+int main(int argc, char *argv[]) {
+  srand(10);
+  FILE *fp;
+  int n;
+  Point **points;
+  fp = fopen("small5.txt", "r");
+  if (fp == NULL) return -1;
+  printf("n = %d\n", n);
+  fscanf(fp, "%d\n", &n);
+  printf("n = %d\n", n);
+  return 0;
+  points = (Point**)malloc(sizeof(Point*) * n);
+  int i;
+  for (i=0; i<n; i++) {
+    fscanf(fp, "%d %d\n", &points[i]->x, &points[i]->y);
+  }
+  tmp = (Point**)malloc(sizeof(Point*) * n);
+
+  int minResult = 1145141919;
+  for (i = 0; i < 1; i++) {
+    int t = getResult(n, points);
+    minResult = t < minResult ? t : minResult;
+  }
+  printf("%d\n", minResult);
+  return 0;
+}
+

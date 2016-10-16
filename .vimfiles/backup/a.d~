@@ -1,0 +1,5 @@
+import std.stdio, std.string,std.range, std.conv, std.array, std.algorithm, std.math, std.typecons, std.container, std.datetime;
+
+void main() {
+  writeln(readln.chomp[$-1] == 'T' ? "YES" : "NO");
+}

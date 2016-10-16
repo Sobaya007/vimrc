@@ -1,0 +1,7 @@
+module player.ParticleStepper;
+
+import player.Particle;
+
+abstract class ParticleSteper {
+
+}

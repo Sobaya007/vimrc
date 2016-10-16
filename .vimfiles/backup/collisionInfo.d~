@@ -1,0 +1,11 @@
+module collision.collisionInfo;
+
+import collision.imports;
+
+struct CollisionInfo {
+	uint index;
+	CollisionObject object; // 衝突しているオブジェクト
+	vec3 vertex; // 衝突点
+	vec3 normal; // 押し出しベクトル
+	float distance; // めり込み距離
+}

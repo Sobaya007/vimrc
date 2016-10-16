@@ -1,0 +1,26 @@
+module scene.SceneManager;
+
+import scene.imports;
+
+class SceneManager : Entity {
+	mixin singleton!(Scene);
+	private this(Scene scene) {
+		this.scene = scene;
+	}
+
+	private Scene scene;
+
+	override bool step() {
+		Scene temp = scene.update();
+		if (temp !is null) {
+			scene = temp;
+			import core.memory;
+			GC.collect();
+		}
+		return true;
+	}
+
+	override string toString() {
+		return typeid(this).toString();
+	}
+}

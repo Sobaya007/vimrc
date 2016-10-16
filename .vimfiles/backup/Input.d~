@@ -1,0 +1,33 @@
+module player.Input;
+
+import sbylib;
+
+alias joyStick = {
+  return Input.joySticks[0];
+};
+alias downButton = {
+  return or(&Input.pressed, KeyButton.Space, KeyButton.Z)
+    || joyStick().getButton(5);
+};
+alias needleButton = {
+  return or(&Input.pressed, KeyButton.X)
+    || joyStick().getButton(4);
+};
+alias dodgeButton = {
+  return or(&Input.pressed, KeyButton.Enter);
+};
+alias boxButton = {
+  return or(&Input.pressed, KeyButton.Z);
+};
+alias leftButton = {
+  return or(&Input.pressed, KeyButton.Left, KeyButton.H);
+};
+alias rightButton = {
+  return or(&Input.pressed, KeyButton.Right, KeyButton.L);
+};
+alias forwardButton = {
+  return or(&Input.pressed, KeyButton.Up, KeyButton.K);
+};
+alias backButton = {
+  return or(&Input.pressed, KeyButton.Down, KeyButton.J);
+};
