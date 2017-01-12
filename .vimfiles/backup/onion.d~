@@ -1,9 +1,0 @@
-import std.stdio, std.string,std.range, std.conv, std.array, std.algorithm, std.math, std.typecons;
-
-import std.file;
-import std.base64;
-
-void main() {
-	auto text = readText("onion.txt").replace("\r", "");
-	writeln(Base64.decode(text));
-}

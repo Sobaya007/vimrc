@@ -1,23 +1,5 @@
-inoremap { {}<Left>
-inoremap {<Enter> {<Enter>}<ESC><S-o>
-inoremap [<Enter> []<Left>
-inoremap (<Enter> ()<Left>
 noremap j gj
 noremap k gk
-noremap <S-l> $
-noremap <S-h> 0
-noremap <S-j> <S-g>
-noremap <S-k> gg
-noremap p "ap
-noremap <S-p> p
-noremap dd "add
-noremap x "bx
-noremap yy "ayy
-vnoremap dd "add<ESC>
-vnoremap x "ax
-vnoremap s "as
-vnoremap y "ay
-
 syntax on
 
 set number
@@ -30,12 +12,14 @@ set statusline=%F%m%r%h%w\ [FORMAT=%{&ff}]\ [TYPE=%Y]\ [ASCII=\%03.3b]\ [POS=%04
 set tabstop=2
 set shiftwidth=2
 set expandtab
-set clipboard=unnamed,autoselect
+set clipboard=exclude:.*
 set encoding=utf-8
-set fileencodings=iso-2022-jp,cp932,sjis,euc-jp,utf-8
-set undodir=~/.vimfiles/undo
+set fileencodings=utf-8,iso-2022-jp,cp932,sjis,euc-jp
 set backupdir=~/.vimfiles/backup
+set undodir=~/.vimfiles/undo
 set noswapfile
+set undofile
+set backup
 set list
 set listchars=tab:>.,trail:_,extends:>,precedes:<,nbsp:%
 autocmd BufRead,BufNewFile *.vert set filetype=c

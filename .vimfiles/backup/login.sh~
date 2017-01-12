@@ -1,7 +1,0 @@
-declare -i count
-count=0
-while count < 52
-do
-	echo count
-	count = count + 1
-done
